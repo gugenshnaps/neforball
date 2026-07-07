@@ -15,8 +15,11 @@ const CORS_HEADERS = {
 const DEFAULT_MODEL = "google/gemini-2.5-flash-image";
 const ALLOWED_MODELS = [
   "google/gemini-2.5-flash-image",
-  "bytedance-seed/seedream-4.5",
-  "black-forest-labs/flux.2-pro",
+  "google/gemini-3.1-flash-lite-image",
+  "google/gemini-3.1-flash-image",
+  "openai/gpt-image-1-mini",
+  "openai/gpt-5-image-mini",
+  "openai/gpt-image-2",
   "openai/gpt-image-1",
 ];
 
