@@ -12,6 +12,14 @@ const CORS_HEADERS = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
+const DEFAULT_MODEL = "google/gemini-2.5-flash-image";
+const ALLOWED_MODELS = [
+  "google/gemini-2.5-flash-image",
+  "bytedance-seed/seedream-4.5",
+  "black-forest-labs/flux.2-pro",
+  "openai/gpt-image-1",
+];
+
 Deno.serve(async (req) => {
   // preflight
   if (req.method === "OPTIONS") {
@@ -19,11 +27,18 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { prompt, imageDataUrl } = await req.json();
+    const { prompt, imageDataUrl, model } = await req.json();
 
     if (!prompt || !imageDataUrl) {
       return new Response(
         JSON.stringify({ error: "Нужны оба поля: prompt и imageDataUrl" }),
+        { status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      );
+    }
+
+    if (model && !ALLOWED_MODELS.includes(model)) {
+      return new Response(
+        JSON.stringify({ error: `Модель "${model}" не в списке разрешённых: ${ALLOWED_MODELS.join(", ")}` }),
         { status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
       );
     }
@@ -43,7 +58,7 @@ Deno.serve(async (req) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "openai/gpt-image-1",
+        model: model || DEFAULT_MODEL,
         prompt,
         input_references: [
           { type: "image_url", image_url: { url: imageDataUrl } },

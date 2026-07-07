@@ -40,6 +40,14 @@
   <h1>🧪 Тест: фото → 16-бит спрайт</h1>
   <p class="sub">Прототип для проверки одного вызова к OpenRouter Image API (GPT Image 1). Ключ хранится только в памяти этой вкладки.</p>
 
+  <label>Модель генерации</label>
+  <select id="modelSelect">
+    <option value="google/gemini-2.5-flash-image">Gemini 2.5 Flash Image (Nano Banana) — ~$0.01-0.02/шт</option>
+    <option value="bytedance-seed/seedream-4.5">Seedream 4.5 — $0.04/шт</option>
+    <option value="black-forest-labs/flux.2-pro">FLUX.2 Pro — ~$0.03-0.06/шт</option>
+    <option value="openai/gpt-image-1">GPT Image 1 — ~$0.06/шт (текущая, дорогая)</option>
+  </select>
+
   <label>URL твоей Supabase Edge Function</label>
   <input type="text" id="proxyUrl" value="https://cjisrumpcjeyzteaaueh.supabase.co/functions/v1/sprite-proxy">
 
@@ -97,13 +105,14 @@ genBtn.addEventListener('click', async () => {
   const proxyUrl = document.getElementById('proxyUrl').value.trim();
   const supaKey = document.getElementById('supaKey').value.trim();
   const prompt = document.getElementById('promptText').value.trim();
+  const model = document.getElementById('modelSelect').value;
   if(!proxyUrl){ log('❌ Вставь URL Edge Function.'); return; }
   if(!supaKey){ log('❌ Вставь Supabase anon key.'); return; }
   if(!selfieDataUrl){ log('❌ Выбери фото.'); return; }
 
   genBtn.disabled = true;
   genBtn.textContent = 'Генерирую…';
-  logEl.textContent = '→ отправляю запрос в прокси-функцию…';
+  logEl.textContent = `→ отправляю запрос в прокси-функцию (модель: ${model})…`;
 
   try{
     const res = await fetch(proxyUrl, {
@@ -113,7 +122,7 @@ genBtn.addEventListener('click', async () => {
         'apikey': supaKey,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ prompt, imageDataUrl: selfieDataUrl })
+      body: JSON.stringify({ prompt, imageDataUrl: selfieDataUrl, model })
     });
 
     const raw = await res.text();
@@ -144,6 +153,9 @@ genBtn.addEventListener('click', async () => {
 
     const imgSrc = b64.startsWith('data:') ? b64 : `data:image/png;base64,${b64}`;
     await processSprite(imgSrc);
+    if(data?.usage?.cost != null){
+      log(`💰 Стоимость этой генерации: $${data.usage.cost}`);
+    }
     log('✅ Готово. Если фон не убрался полностью — модель могла не выдержать точный magenta, попробуй поменять промпт.');
 
   }catch(err){
