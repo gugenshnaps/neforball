@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Тест: фото → 16-бит спрайт</title>
+<style>
+  :root{ --bg:#12100c; --panel:#1c1912; --line:#3a332a; --bone:#f2ecdd; --dim:#a89a80; --acc:#3fe83f; }
+  *{box-sizing:border-box;}
+  body{background:var(--bg); color:var(--bone); font-family:'Space Mono', monospace; padding:20px; max-width:480px; margin:0 auto;}
+  h1{font-size:18px; margin-bottom:4px;}
+  p.sub{color:var(--dim); font-size:13px; margin-top:0;}
+  label{display:block; font-size:12px; color:var(--dim); margin:14px 0 4px; text-transform:uppercase; letter-spacing:0.04em;}
+  input[type="password"], textarea{
+    width:100%; background:var(--panel); border:1px solid var(--line); color:var(--bone);
+    padding:10px; border-radius:8px; font-family:inherit; font-size:13px;
+  }
+  textarea{min-height:70px; resize:vertical;}
+  input[type="file"]{color:var(--dim); font-size:12px;}
+  button{
+    margin-top:14px; width:100%; padding:14px; border:none; border-radius:8px;
+    background:var(--acc); color:#0a1a0a; font-weight:700; font-size:14px; cursor:pointer;
+  }
+  button:disabled{opacity:0.4; cursor:default;}
+  .preview-row{display:flex; gap:14px; margin-top:18px; align-items:flex-start;}
+  .box{flex:1; background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:10px; text-align:center;}
+  .box img{width:100%; aspect-ratio:1/1; object-fit:contain; background:#000; border-radius:6px;}
+  .box .lbl{font-size:10px; color:var(--dim); text-transform:uppercase; margin-top:6px;}
+  .sprite-wrap{width:100%; aspect-ratio:1/1; background:repeating-conic-gradient(#222 0% 25%, #2a2a2a 0% 50%) 50%/16px 16px; border-radius:6px; display:flex; align-items:center; justify-content:center; overflow:hidden;}
+  .sprite-wrap img{animation: bob 1.6s ease-in-out infinite; width:80%;}
+  @keyframes bob{ 0%,100%{transform:translateY(0) scale(1);} 50%{transform:translateY(-3%) scale(1.015);} }
+  #log{
+    margin-top:16px; background:#000; border:1px solid var(--line); border-radius:8px;
+    padding:10px; font-size:11px; color:#8fdc8f; white-space:pre-wrap; max-height:220px; overflow:auto;
+  }
+  .warn{color:#ffb15c; font-size:12px; margin-top:10px; line-height:1.5;}
+</style>
+</head>
+<body>
+  <h1>🧪 Тест: фото → 16-бит спрайт</h1>
+  <p class="sub">Прототип для проверки одного вызова к OpenRouter Image API (GPT Image 1). Ключ хранится только в памяти этой вкладки.</p>
+
+  <label>URL твоей Supabase Edge Function</label>
+  <input type="text" id="proxyUrl" placeholder="https://ТВОЙ-ПРОЕКТ.supabase.co/functions/v1/sprite-proxy">
+
+  <label>Supabase anon/publishable key</label>
+  <input type="password" id="supaKey" placeholder="eyJhbGciOi...">
+
+  <label>Промпт (можно менять для экспериментов)</label>
+  <textarea id="promptText">16-bit SNES-style pixel art sprite of this person, front-facing, waist-up, single character centered, flat solid magenta (#ff00ff) background, no text, no watermark, retro video game character portrait style</textarea>
+
+  <label>Селфи</label>
+  <input type="file" accept="image/*" capture="user" id="fileInput">
+
+  <button id="genBtn" disabled>Сгенерировать спрайт</button>
+
+  <div class="preview-row">
+    <div class="box">
+      <img id="srcImg" src="" alt="">
+      <div class="lbl">исходное фото</div>
+    </div>
+    <div class="box">
+      <div class="sprite-wrap"><img id="spriteImg" src="" style="display:none;"></div>
+      <div class="lbl">спрайт (с прозрачным фоном)</div>
+    </div>
+  </div>
+
+  <p class="warn">Ключ OpenRouter теперь хранится только на сервере (в секретах Edge Function) — в этом инструменте его нигде вводить не нужно, только URL функции и публичный Supabase-ключ (его светить безопасно).</p>
+  <div id="log">лог появится здесь после генерации…</div>
+
+<script>
+const fileInput = document.getElementById('fileInput');
+const genBtn = document.getElementById('genBtn');
+const srcImg = document.getElementById('srcImg');
+const spriteImg = document.getElementById('spriteImg');
+const logEl = document.getElementById('log');
+let selfieDataUrl = null;
+
+function log(msg){
+  logEl.textContent += '\n' + (typeof msg === 'string' ? msg : JSON.stringify(msg, null, 2));
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+fileInput.addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    selfieDataUrl = reader.result;
+    srcImg.src = selfieDataUrl;
+    genBtn.disabled = false;
+  };
+  reader.readAsDataURL(file);
+});
+
+genBtn.addEventListener('click', async () => {
+  const proxyUrl = document.getElementById('proxyUrl').value.trim();
+  const supaKey = document.getElementById('supaKey').value.trim();
+  const prompt = document.getElementById('promptText').value.trim();
+  if(!proxyUrl){ log('❌ Вставь URL Edge Function.'); return; }
+  if(!supaKey){ log('❌ Вставь Supabase anon key.'); return; }
+  if(!selfieDataUrl){ log('❌ Выбери фото.'); return; }
+
+  genBtn.disabled = true;
+  genBtn.textContent = 'Генерирую…';
+  logEl.textContent = '→ отправляю запрос в прокси-функцию…';
+
+  try{
+    const res = await fetch(proxyUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${supaKey}`,
+        'apikey': supaKey,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ prompt, imageDataUrl: selfieDataUrl })
+    });
+
+    const raw = await res.text();
+    log(`← статус ответа: ${res.status}`);
+
+    if(!res.ok){
+      log('❌ Ошибка от сервера:');
+      log(raw);
+      return;
+    }
+
+    let data;
+    try{ data = JSON.parse(raw); } catch(e){ log('⚠️ Ответ не в JSON:'); log(raw); return; }
+
+    // response shape isn't fixed across providers — try the common spots
+    let b64 =
+      data?.data?.[0]?.b64_json ||
+      data?.images?.[0]?.b64_json ||
+      data?.images?.[0]?.image_url?.url ||
+      data?.output?.[0]?.b64_json ||
+      null;
+
+    if(!b64){
+      log('⚠️ Не нашёл base64-картинку по известным путям, вот сырой ответ:');
+      log(data);
+      return;
+    }
+
+    const imgSrc = b64.startsWith('data:') ? b64 : `data:image/png;base64,${b64}`;
+    await processSprite(imgSrc);
+    log('✅ Готово. Если фон не убрался полностью — модель могла не выдержать точный magenta, попробуй поменять промпт.');
+
+  }catch(err){
+    log('❌ Сетевая ошибка при обращении к прокси:');
+    log(String(err));
+  }finally{
+    genBtn.disabled = false;
+    genBtn.textContent = 'Сгенерировать спрайт';
+  }
+});
+
+// remove near-magenta background client-side, so we don't need to pay for "transparent output"
+function processSprite(imgSrc){
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      const c = document.createElement('canvas');
+      c.width = img.width; c.height = img.height;
+      const ctx = c.getContext('2d');
+      ctx.drawImage(img, 0, 0);
+      const data = ctx.getImageData(0, 0, c.width, c.height);
+      const px = data.data;
+      for(let i=0; i<px.length; i+=4){
+        const r = px[i], g = px[i+1], b = px[i+2];
+        // near-magenta detection: high R, low G, high B
+        if(r > 180 && g < 90 && b > 180){
+          px[i+3] = 0;
+        }
+      }
+      ctx.putImageData(data, 0, 0);
+      spriteImg.src = c.toDataURL('image/png');
+      spriteImg.style.display = 'block';
+      resolve();
+    };
+    img.src = imgSrc;
+  });
+}
+</script>
+</body>
+</html>

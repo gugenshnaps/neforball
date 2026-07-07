@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>НЕФОРБОЛ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/selfie_segmentation.js"></script>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  :root{
+    --panel-bg:rgba(41,58,102,0.55);
+    --panel-border:rgba(255,255,255,0.18);
+    --ticker-bg:#182035;
+    --yellow:#f5e35c;
+    --white:#f4f1e8;
+    --green:#3fe83f;
+    --green-dim:#1f7a1f;
+    --life:#ff5a5a;
+    --dmg:#ffa73d;
+    --depr:#7fd1ff;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:#1a1330;
+    color:var(--white);
+    font-family:'Space Mono', monospace;
+    display:flex;
+    justify-content:center;
+    min-height:100vh;
+  }
+  .phone{
+    width:100%;
+    max-width:430px;
+    min-height:100vh;
+    position:relative;
+    padding-bottom:78px;
+    overflow-x:hidden;
+    background:
+      linear-gradient(160deg, #6a4f9e 0%, #8a5f92 18%, #c98a52 38%, #8a76a0 55%, #5b74ab 72%, #37497c 100%);
+  }
+  .scanlines{
+    position:absolute; inset:0;
+    pointer-events:none;
+    background:repeating-linear-gradient(180deg, rgba(0,0,0,0.14) 0px, rgba(0,0,0,0.14) 1px, transparent 1px, transparent 3px);
+    mix-blend-mode:multiply;
+    z-index:5;
+  }
+
+  .outline{
+    text-shadow:-1.5px -1.5px 0 #000, 1.5px -1.5px 0 #000, -1.5px 1.5px 0 #000, 1.5px 1.5px 0 #000, 0 3px 4px rgba(0,0,0,0.35);
+  }
+
+  /* top bar */
+  .topbar{
+    display:flex;
+    align-items:flex-start;
+    justify-content:space-between;
+    padding:20px 18px 10px;
+    position:relative;
+    z-index:2;
+  }
+  .brand{display:flex; align-items:center; gap:10px;}
+  .logo{
+    width:52px; height:52px;
+    border-radius:14px;
+    background:linear-gradient(160deg,#4a6fd4,#1c2e6e);
+    border:3px solid var(--white);
+    display:flex; align-items:center; justify-content:center;
+    flex-shrink:0;
+  }
+  .logo span{
+    font-family:'Archivo Black', sans-serif;
+    font-size:20px;
+    color:var(--white);
+  }
+  .brand-text{font-family:'Archivo Black', sans-serif; font-size:15px; line-height:1.15; color:var(--yellow);}
+  .brand-text small{display:block; font-size:15px;}
+  .clock{text-align:right; font-family:'Space Mono', monospace; color:var(--white);}
+  .clock .time{font-size:17px; font-weight:700;}
+  .clock .date{font-size:12px; margin-top:2px; color:var(--white); opacity:0.9;}
+
+  /* main glass panel */
+  .panel{
+    margin:6px 16px 0;
+    background:var(--panel-bg);
+    border:1px solid var(--panel-border);
+    border-radius:18px;
+    padding:22px 18px 18px;
+    position:relative;
+    z-index:2;
+    backdrop-filter:blur(1px);
+  }
+  .hero-row{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    text-align:center;
+  }
+  .bignum{
+    font-family:'Archivo Black', sans-serif;
+    font-size:52px;
+    color:var(--white);
+  }
+  .bignum-lbl{
+    font-family:'Space Mono', monospace;
+    font-size:12px;
+    letter-spacing:0.08em;
+    color:var(--white);
+    opacity:0.85;
+    margin-top:-4px;
+    text-transform:uppercase;
+  }
+  .condition{
+    font-family:'Archivo Black', sans-serif;
+    font-size:19px;
+    color:var(--yellow);
+    margin-top:6px;
+  }
+  .ball-icon{width:112px; height:112px; margin:14px 0 6px;}
+  .subline{
+    font-size:13px;
+    color:var(--white);
+    margin-top:8px;
+    font-weight:700;
+  }
+
+  .divider{
+    height:1px;
+    background:rgba(255,255,255,0.22);
+    margin:18px 0 12px;
+  }
+  .district{
+    font-family:'Archivo Black', sans-serif;
+    font-size:15px;
+    color:var(--yellow);
+    margin-bottom:10px;
+  }
+  .rows .row{
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+    padding:6px 0;
+    font-size:13.5px;
+    font-weight:700;
+    border-bottom:1px dashed rgba(255,255,255,0.14);
+  }
+  .rows .row:last-child{border-bottom:none;}
+  .rows .row .v{color:var(--white);}
+
+  /* legend chips */
+  .legend{
+    display:flex;
+    flex-wrap:wrap;
+    gap:14px;
+    padding:14px 18px 2px;
+    font-size:10px;
+    color:var(--white);
+    position:relative; z-index:2;
+  }
+  .legend span{display:flex;align-items:center;gap:5px;text-transform:uppercase;font-weight:700;}
+  .dot{width:9px;height:9px;border-radius:2px;display:inline-block;border:1px solid rgba(0,0,0,0.5);}
+
+  /* collection section */
+  .section-title{
+    padding:20px 18px 8px;
+    font-family:'Archivo Black', sans-serif;
+    font-size:16px;
+    color:var(--yellow);
+    position:relative; z-index:2;
+  }
+  .grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:12px;
+    padding:0 16px 14px;
+    position:relative; z-index:2;
+  }
+  .empty{
+    margin:6px 16px 0;
+    background:var(--panel-bg);
+    border:1px solid var(--panel-border);
+    border-radius:16px;
+    padding:28px 18px;
+    text-align:center;
+    position:relative; z-index:2;
+  }
+  .empty .glyph{font-size:28px; margin-bottom:8px;}
+  .empty p{margin:0; font-size:13px; color:var(--white); line-height:1.6; font-weight:700;}
+  .empty .accent{color:var(--yellow);}
+
+  .card{
+    background:var(--panel-bg);
+    border:1px solid var(--panel-border);
+    border-radius:14px;
+    overflow:hidden;
+    animation:pop 0.35s ease;
+    cursor:pointer;
+  }
+  @keyframes pop{from{transform:scale(0.85);opacity:0;} to{transform:scale(1);opacity:1;}}
+  .card .thumb{
+    width:100%; aspect-ratio:1/1;
+    background:#101a30;
+    position:relative;
+  }
+  .card .thumb img{
+    width:100%; height:100%;
+    object-fit:contain;
+    filter:drop-shadow(0 5px 8px rgba(0,0,0,0.6));
+    padding:12%;
+    box-sizing:border-box;
+  }
+  .card .idtag{
+    position:absolute; top:6px; left:6px;
+    background:var(--yellow);
+    color:#1a1330;
+    font-family:'Archivo Black', sans-serif;
+    font-size:9px;
+    padding:2px 6px;
+    border-radius:4px;
+  }
+  .card .body{padding:9px 10px 11px;}
+  .card .name{
+    font-family:'Archivo Black', sans-serif;
+    font-size:11px;
+    color:var(--white);
+    margin-bottom:8px;
+    line-height:1.2;
+  }
+  .barrow{margin-bottom:5px;}
+  .barrow:last-child{margin-bottom:0;}
+  .barrow .top{
+    display:flex; justify-content:space-between;
+    font-size:8px; color:var(--white); opacity:0.85;
+    text-transform:uppercase; letter-spacing:0.03em;
+    margin-bottom:2px; font-weight:700;
+  }
+  .track{height:5px; background:rgba(0,0,0,0.35); border-radius:3px; overflow:hidden;}
+  .fill{height:100%;}
+
+  .note{
+    margin:6px 18px 4px;
+    font-size:9px;
+    color:var(--white);
+    opacity:0.65;
+    line-height:1.6;
+    position:relative; z-index:2;
+  }
+
+  /* bottom ticker CTA */
+  .ticker{
+    position:fixed; bottom:0; left:0; right:0;
+    background:var(--ticker-bg);
+    border-top:1px solid rgba(255,255,255,0.15);
+    display:flex; align-items:center; justify-content:space-between;
+    padding:14px 16px calc(14px + env(safe-area-inset-bottom));
+    cursor:pointer;
+    max-width:430px;
+    margin:0 auto;
+    z-index:10;
+  }
+  .ticker .txt{
+    font-family:'Archivo Black', sans-serif;
+    font-size:14px;
+    color:var(--white);
+    letter-spacing:0.02em;
+  }
+  .go-btn{
+    width:38px; height:38px;
+    background:var(--green);
+    border:2px solid var(--green-dim);
+    border-radius:8px;
+    display:flex; align-items:center; justify-content:center;
+    flex-shrink:0;
+  }
+  .go-btn svg{width:16px; height:16px;}
+
+  /* modal */
+  .modal{
+    position:fixed; inset:0;
+    background:rgba(10,8,20,0.94);
+    display:none;
+    align-items:center; justify-content:center;
+    z-index:50; flex-direction:column; padding:20px;
+  }
+  .modal.open{display:flex;}
+  .viewfinder{
+    width:100%; max-width:390px; aspect-ratio:1/1;
+    background:#000; position:relative; overflow:hidden;
+    border-radius:16px;
+    border:1px solid var(--panel-border);
+    box-shadow:0 0 0 3px rgba(63,232,63,0.5);
+  }
+  .viewfinder video, .viewfinder canvas{width:100%;height:100%;object-fit:cover;display:block;}
+  .corner{position:absolute; width:20px; height:20px; border-color:var(--green); border-style:solid; border-width:0;}
+  .corner.tl{top:10px;left:10px;border-top-width:3px;border-left-width:3px;}
+  .corner.tr{top:10px;right:10px;border-top-width:3px;border-right-width:3px;}
+  .corner.bl{bottom:10px;left:10px;border-bottom-width:3px;border-left-width:3px;}
+  .corner.br{bottom:10px;right:10px;border-bottom-width:3px;border-right-width:3px;}
+  .processing{
+    position:absolute; inset:0; background:rgba(10,8,20,0.88);
+    display:none; align-items:center; justify-content:center; flex-direction:column; gap:12px;
+  }
+  .processing.on{display:flex;}
+  .spinner{width:32px;height:32px;border:3px solid rgba(255,255,255,0.2);border-top-color:var(--green);border-radius:50%;animation:spin 0.8s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .processing p{font-family:'Archivo Black', sans-serif; font-size:12px; color:var(--white); text-transform:uppercase;}
+
+  .catch-overlay{
+    position:absolute; inset:0;
+    display:none; align-items:center; justify-content:center;
+    background:rgba(10,8,20,0.55);
+    z-index:6;
+  }
+  .catch-overlay.on{display:flex;}
+  .catch-overlay.flash{animation:flashBg 0.5s ease-out forwards;}
+  @keyframes flashBg{
+    0%{background:rgba(10,8,20,0.55);}
+    12%{background:rgba(255,255,255,0.85);}
+    100%{background:rgba(10,8,20,0);}
+  }
+  .catch-overlay img{
+    width:56%; max-width:220px;
+    filter:drop-shadow(0 10px 18px rgba(0,0,0,0.65));
+    transform:scale(0.3); opacity:0;
+  }
+  .catch-overlay img.pop{animation:catchPop 0.32s cubic-bezier(.25,1.7,.4,1) forwards;}
+  .catch-overlay img.suck{animation:catchSuck 0.5s cubic-bezier(.5,0,.9,.4) forwards;}
+  @keyframes catchPop{from{transform:scale(0.3);opacity:0;} to{transform:scale(1);opacity:1;}}
+  @keyframes catchSuck{
+    0%{transform:scale(1) translateY(0); opacity:1;}
+    100%{transform:scale(0.04) translateY(130px); opacity:0;}
+  }
+  .catch-label{
+    position:absolute; bottom:16%;
+    font-family:'Archivo Black', sans-serif;
+    font-size:22px;
+    color:var(--yellow);
+    opacity:0;
+  }
+  .catch-label.show{animation:labelPop 0.4s ease forwards;}
+  @keyframes labelPop{
+    0%{opacity:0; transform:translateY(10px) scale(0.7);}
+    65%{opacity:1; transform:translateY(0) scale(1.08);}
+    100%{opacity:1; transform:scale(1);}
+  }
+
+  @keyframes cardGlow{
+    0%{box-shadow:0 0 0 0 rgba(245,227,92,0);}
+    25%{box-shadow:0 0 0 3px rgba(245,227,92,0.9), 0 0 18px 4px rgba(245,227,92,0.5);}
+    100%{box-shadow:0 0 0 0 rgba(245,227,92,0);}
+  }
+  .grid .card:first-child{animation:pop 0.35s ease, cardGlow 1.3s ease-out;}
+
+  .demo-fill{
+    display:inline-flex; align-items:center; gap:6px;
+    margin:0 18px 10px;
+    padding:6px 12px;
+    font-size:10px;
+    color:var(--white);
+    opacity:0.55;
+    border:1px dashed rgba(255,255,255,0.35);
+    border-radius:20px;
+    background:transparent;
+    cursor:pointer;
+    position:relative; z-index:2;
+  }
+  .demo-fill:active{opacity:0.9;}
+
+  .modal-controls{display:flex; gap:12px; margin-top:18px; width:100%; max-width:390px;}
+  .mbtn{
+    flex:1; padding:14px;
+    font-family:'Space Mono', monospace; font-weight:700; font-size:12px;
+    text-transform:uppercase; letter-spacing:0.05em;
+    border:1px solid var(--panel-border); border-radius:10px;
+    background:var(--panel-bg); color:var(--white); cursor:pointer;
+  }
+  .mbtn.shoot{background:var(--green); color:#0a1a0a; border-color:var(--green-dim); font-family:'Archivo Black', sans-serif;}
+  .hint{font-size:11px; color:var(--white); opacity:0.8; margin-top:12px; text-align:center; max-width:340px; line-height:1.5;}
+  .fallback-input{display:none;}
+
+  .detail-panel{
+    width:100%; max-width:360px;
+    background:var(--panel-bg);
+    border:1px solid var(--panel-border);
+    border-radius:20px;
+    padding:22px 20px 24px;
+    position:relative;
+    backdrop-filter:blur(2px);
+  }
+  .detail-close{
+    position:absolute; top:14px; right:14px;
+    width:30px; height:30px;
+    border-radius:50%;
+    border:1px solid var(--panel-border);
+    background:rgba(0,0,0,0.3);
+    color:var(--white);
+    font-size:14px;
+    cursor:pointer;
+  }
+  .detail-thumb{
+    width:60%; margin:0 auto;
+    aspect-ratio:1/1;
+    background:#101a30;
+    border-radius:16px;
+    position:relative;
+    overflow:hidden;
+  }
+  .detail-thumb img{
+    width:100%; height:100%;
+    object-fit:contain;
+    filter:drop-shadow(0 6px 12px rgba(0,0,0,0.6));
+    padding:10%;
+    box-sizing:border-box;
+  }
+  .detail-thumb .idtag{
+    position:absolute; top:8px; left:8px;
+    background:var(--yellow); color:#1a1330;
+    font-family:'Archivo Black', sans-serif;
+    font-size:10px; padding:2px 7px; border-radius:5px;
+  }
+  .detail-name{
+    text-align:center;
+    font-family:'Archivo Black', sans-serif;
+    font-size:20px;
+    color:var(--white);
+    margin:16px 0 18px;
+  }
+  #detailBars .barrow{margin-bottom:14px;}
+  #detailBars .top{
+    display:flex; justify-content:space-between;
+    font-size:11px; color:var(--white); opacity:0.9;
+    text-transform:uppercase; letter-spacing:0.04em;
+    margin-bottom:5px; font-weight:700;
+  }
+  #detailBars .track{height:9px; border-radius:5px;}
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="scanlines"></div>
+
+  <div class="topbar">
+    <div class="brand">
+      <div class="logo"><span>Н</span></div>
+      <div class="brand-text outline">Полевой<small>сбор</small></div>
+    </div>
+    <div class="clock">
+      <div class="time outline" id="clockTime">--:--:--</div>
+      <div class="date" id="clockDate">--- -- ---</div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="hero-row">
+      <svg class="ball-icon" viewBox="0 0 200 200">
+        <defs>
+          <radialGradient id="sheen" cx="32%" cy="26%" r="75%">
+            <stop offset="0%" stop-color="#4a4a4a"/>
+            <stop offset="45%" stop-color="#1c1c1c"/>
+            <stop offset="100%" stop-color="#000"/>
+          </radialGradient>
+        </defs>
+        <circle cx="100" cy="100" r="90" fill="url(#sheen)" stroke="#000" stroke-width="6"/>
+        <rect x="10" y="92" width="180" height="16" fill="#0a0a0a" stroke="#000" stroke-width="2"/>
+        <circle cx="100" cy="100" r="26" fill="#0a0a0a" stroke="#000" stroke-width="6"/>
+        <circle cx="100" cy="100" r="16" fill="#2a2a2a" stroke="#000" stroke-width="3"/>
+      </svg>
+      <div class="bignum outline" id="bigCount">0</div>
+      <div class="bignum-lbl">нефоров в шаре</div>
+      <div class="condition outline" id="conditionLine">Пока тихо</div>
+      <div class="subline" id="lastLine">Последний улов: —</div>
+    </div>
+
+    <div class="divider"></div>
+    <div class="district">Городские улицы</div>
+    <div class="rows">
+      <div class="row"><span>Поймано всего:</span><span class="v" id="countStat">0</span></div>
+      <div class="row"><span>Средняя устойчивость:</span><span class="v" id="avgStat">—</span></div>
+      <div class="row"><span>Топ вид:</span><span class="v" id="rareStat">—</span></div>
+      <div class="row"><span>Статус шара:</span><span class="v" id="statusStat">Есть место</span></div>
+    </div>
+  </div>
+
+  <div class="legend">
+    <span><i class="dot" style="background:var(--life)"></i>жизнь</span>
+    <span><i class="dot" style="background:var(--dmg)"></i>урон</span>
+    <span><i class="dot" style="background:var(--depr)"></i>устойч. к депрессии</span>
+  </div>
+
+  <div class="section-title outline">Коллекция</div>
+
+  <div id="emptyState" class="empty">
+    <div class="glyph">◌</div>
+    <p>Нефорбол пуст.<br><span class="accent">Пора выходить на охоту.</span></p>
+  </div>
+
+  <div class="grid" id="grid"></div>
+
+  <p class="note" id="disclaimer">вырезание фона — настоящая модель (MediaPipe Selfie Segmentation, бесплатная, работает прямо в браузере), определяет силуэт человека попиксельно. характеристики нефора пока генерируются случайно при поимке.</p>
+
+  <button class="demo-fill" id="demoFill">+ демо-нефоры (для кадра галереи)</button>
+
+  <div class="ticker" id="openCam">
+    <span class="txt outline">ЗАБРАТЬ НЕФОРА</span>
+    <div class="go-btn">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M5 12h14M13 6l6 6-6 6" stroke="#0a1a0a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </div>
+  </div>
+
+  <!-- modal -->
+  <div class="modal" id="modal">
+    <div class="viewfinder" id="viewfinder">
+      <video id="video" autoplay playsinline muted></video>
+      <canvas id="canvas" style="display:none;"></canvas>
+      <div class="corner tl"></div><div class="corner tr"></div>
+      <div class="corner bl"></div><div class="corner br"></div>
+      <div class="processing" id="processing">
+        <div class="spinner"></div>
+        <p id="procLabel">ЗАХВАТ СИЛУЭТА…</p>
+      </div>
+      <div class="catch-overlay" id="catchOverlay">
+        <img id="catchImg" src="" alt="">
+        <div class="catch-label outline" id="catchLabel">ПОЙМАН!</div>
+      </div>
+    </div>
+    <div class="modal-controls">
+      <button class="mbtn" id="cancelBtn">Отмена</button>
+      <button class="mbtn shoot" id="shootBtn">Поймать</button>
+    </div>
+    <p class="hint" id="camHint">Наведи камеру на нефора и держи ровно.</p>
+    <input type="file" accept="image/*" capture="environment" class="fallback-input" id="fallbackInput">
+  </div>
+
+  <!-- detail modal -->
+  <div class="modal" id="detailModal">
+    <div class="detail-panel">
+      <button class="detail-close" id="detailClose">✕</button>
+      <div class="detail-thumb">
+        <img id="detailImg" src="" alt="">
+        <div class="idtag" id="detailTag">#000</div>
+      </div>
+      <div class="detail-name outline" id="detailName">—</div>
+      <div id="detailBars"></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const NAMES = [
+  "Панк с района","Готка у ТЦ","Эмо на лавке","Кибер-гопник","Метал-олдскул",
+  "Скейт-панк","Альт-герл","Растаман с драбадана","Хиппи из перехода","Дарк-академик",
+  "Гранж-подросток","Индастриал-фрик","Стрит-панк","Неформал 2007 vintage","Готик-лолита"
+];
+
+// Telegram Mini App integration — runs harmlessly outside Telegram too
+const tg = window.Telegram && window.Telegram.WebApp;
+if(tg){
+  tg.ready();
+  tg.expand();
+  if(tg.disableVerticalSwipes) tg.disableVerticalSwipes();
+  if(tg.MainButton) tg.MainButton.hide();
+  if(tg.setHeaderColor) { try{ tg.setHeaderColor('#37497c'); }catch(e){} }
+}
+
+let collection = [];
+let stream = null;
+let segmenter = null;
+let segmenterReady = null;
+let pendingResolve = null;
+
+function initSegmenter(){
+  if(segmenterReady) return segmenterReady;
+  segmenterReady = new Promise((resolve, reject) => {
+    try{
+      segmenter = new SelfieSegmentation({
+        locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${file}`
+      });
+      segmenter.setOptions({ modelSelection: 1 });
+      segmenter.onResults((results) => {
+        if(pendingResolve){ pendingResolve(results); pendingResolve = null; }
+      });
+      resolve(true);
+    }catch(err){ reject(err); }
+  });
+  return segmenterReady;
+}
+
+function runSegmentation(imageSource){
+  return new Promise(async (resolve) => {
+    pendingResolve = resolve;
+    await segmenter.send({image: imageSource});
+  });
+}
+
+// never let a capture hang mid-shoot — if segmentation stalls, fall back to a plain square crop
+function withTimeout(promise, ms){
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), ms))
+  ]);
+}
+
+function simpleCrop(source){
+  const sw = source.videoWidth || source.width;
+  const sh = source.videoHeight || source.height;
+  const side = Math.min(sw, sh);
+  const sx = (sw - side)/2;
+  const sy = (sh - side)/2;
+  canvas.width = 500; canvas.height = 500;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0,0,500,500);
+  ctx.drawImage(source, sx, sy, side, side, 0, 0, 500, 500);
+  return canvas.toDataURL('image/png');
+}
+
+const grid = document.getElementById('grid');
+const emptyState = document.getElementById('emptyState');
+const bigCount = document.getElementById('bigCount');
+const conditionLine = document.getElementById('conditionLine');
+const lastLine = document.getElementById('lastLine');
+const countStat = document.getElementById('countStat');
+const avgStat = document.getElementById('avgStat');
+const rareStat = document.getElementById('rareStat');
+const statusStat = document.getElementById('statusStat');
+const modal = document.getElementById('modal');
+const video = document.getElementById('video');
+const canvas = document.getElementById('canvas');
+const processing = document.getElementById('processing');
+const camHint = document.getElementById('camHint');
+const fallbackInput = document.getElementById('fallbackInput');
+
+document.getElementById('openCam').addEventListener('click', openCamera);
+document.getElementById('cancelBtn').addEventListener('click', closeModal);
+document.getElementById('shootBtn').addEventListener('click', shoot);
+fallbackInput.addEventListener('change', handleFallback);
+document.getElementById('demoFill').addEventListener('click', () => addDemoBatch(6));
+
+const detailModal = document.getElementById('detailModal');
+document.getElementById('detailClose').addEventListener('click', () => detailModal.classList.remove('open'));
+detailModal.addEventListener('click', (e) => { if(e.target === detailModal) detailModal.classList.remove('open'); });
+grid.addEventListener('click', (e) => {
+  const card = e.target.closest('.card');
+  if(!card) return;
+  openDetail(Number(card.dataset.id));
+});
+
+function openDetail(id){
+  const n = collection.find(x => x.id === id);
+  if(!n) return;
+  document.getElementById('detailImg').src = n.img;
+  document.getElementById('detailTag').textContent = '#' + String(n.id).padStart(3,'0');
+  document.getElementById('detailName').textContent = n.name;
+  document.getElementById('detailBars').innerHTML =
+    bar('жизнь', n.life, 'var(--life)') +
+    bar('урон', n.dmg, 'var(--dmg)') +
+    bar('устойчивость к депрессии', n.depr, 'var(--depr)');
+  detailModal.classList.add('open');
+}
+
+// warm up the model as soon as the page loads, so the first real shot isn't slow
+initSegmenter().catch(()=>{});
+
+function placeholderImg(seed){
+  const colors = ['#ff5a5a','#ffa73d','#7fd1ff','#c9ff5e','#ff8ad1','#8f7bff','#ffd15c','#5ce0c0'];
+  const c = colors[seed % colors.length];
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'>
+    <circle cx='100' cy='76' r='40' fill='${c}'/>
+    <path d='M38,198 Q38,118 100,118 Q162,118 162,198 Z' fill='${c}'/>
+  </svg>`;
+  return 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
+}
+
+function addDemoBatch(n){
+  for(let i=0;i<n;i++){
+    collection.unshift({
+      id: collection.length + 1,
+      name: NAMES[Math.floor(Math.random()*NAMES.length)],
+      img: placeholderImg(collection.length + i),
+      life: 1 + Math.floor(Math.random()*10),
+      dmg: 1 + Math.floor(Math.random()*10),
+      depr: 1 + Math.floor(Math.random()*10),
+    });
+  }
+  render();
+}
+
+// retro clock
+const DAYS = ['ВС','ПН','ВТ','СР','ЧТ','ПТ','СБ'];
+const MONTHS = ['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
+function tickClock(){
+  const d = new Date();
+  const hh = String(d.getHours()).padStart(2,'0');
+  const mm = String(d.getMinutes()).padStart(2,'0');
+  const ss = String(d.getSeconds()).padStart(2,'0');
+  document.getElementById('clockTime').textContent = `${hh}:${mm}:${ss}`;
+  document.getElementById('clockDate').textContent = `${DAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]}`;
+}
+tickClock();
+setInterval(tickClock, 1000);
+
+async function openCamera(){
+  modal.classList.add('open');
+  video.style.display = 'block';
+  canvas.style.display = 'none';
+  try{
+    stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}, audio:false});
+    video.srcObject = stream;
+  }catch(err){
+    camHint.innerHTML = 'Камера недоступна в этом окне предпросмотра. Можно выбрать фото вручную —';
+    const link = document.createElement('button');
+    link.textContent = 'выбрать фото';
+    link.className = 'mbtn';
+    link.style.marginTop = '8px';
+    link.onclick = () => fallbackInput.click();
+    camHint.appendChild(document.createElement('br'));
+    camHint.appendChild(link);
+  }
+}
+
+function closeModal(){
+  modal.classList.remove('open');
+  if(stream){
+    stream.getTracks().forEach(t => t.stop());
+    stream = null;
+  }
+  processing.classList.remove('on');
+}
+
+function handleFallback(e){
+  const file = e.target.files[0];
+  if(!file) return;
+  const img = new Image();
+  img.onload = async () => {
+    processing.classList.add('on');
+    await initSegmenter().catch(()=>{});
+    let dataUrl;
+    try{
+      dataUrl = await withTimeout(stylize(img), 8000);
+    }catch(err){
+      dataUrl = simpleCrop(img);
+    }
+    processing.classList.remove('on');
+    await playCatchAnimation(dataUrl);
+    finishCapture(dataUrl);
+  };
+  img.src = URL.createObjectURL(file);
+}
+
+async function shoot(){
+  if(!stream) return;
+  processing.classList.add('on');
+  await initSegmenter().catch(()=>{});
+  let dataUrl;
+  try{
+    dataUrl = await withTimeout(stylize(video), 8000);
+  }catch(err){
+    dataUrl = simpleCrop(video);
+  }
+  processing.classList.remove('on');
+  await playCatchAnimation(dataUrl);
+  finishCapture(dataUrl);
+}
+
+function playCatchAnimation(dataUrl){
+  return new Promise((resolve) => {
+    const overlay = document.getElementById('catchOverlay');
+    const img = document.getElementById('catchImg');
+    const label = document.getElementById('catchLabel');
+    img.src = dataUrl;
+    img.className = '';
+    label.className = '';
+    overlay.classList.add('on');
+    requestAnimationFrame(() => {
+      img.className = 'pop';
+      setTimeout(() => { label.className = 'show'; }, 200);
+      setTimeout(() => {
+        overlay.classList.add('flash');
+        img.className = 'suck';
+      }, 620);
+      setTimeout(() => {
+        overlay.classList.remove('on','flash');
+        resolve();
+      }, 1150);
+    });
+  });
+}
+
+async function stylize(source){
+  const sw = source.videoWidth || source.width;
+  const sh = source.videoHeight || source.height;
+  const side = Math.min(sw, sh);
+  const sx = (sw - side)/2;
+  const sy = (sh - side)/2;
+
+  const cropCanvas = document.createElement('canvas');
+  cropCanvas.width = 500;
+  cropCanvas.height = 500;
+  cropCanvas.getContext('2d').drawImage(source, sx, sy, side, side, 0, 0, 500, 500);
+
+  const results = await runSegmentation(cropCanvas);
+
+  canvas.width = 500;
+  canvas.height = 500;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0,0,500,500);
+  ctx.drawImage(results.image, 0, 0, 500, 500);
+  ctx.globalCompositeOperation = 'destination-in';
+  ctx.drawImage(results.segmentationMask, 0, 0, 500, 500);
+  ctx.globalCompositeOperation = 'source-over';
+
+  return canvas.toDataURL('image/png');
+}
+
+function finishCapture(dataUrl){
+  const nefor = {
+    id: collection.length + 1,
+    name: NAMES[Math.floor(Math.random()*NAMES.length)],
+    img: dataUrl,
+    life: 1 + Math.floor(Math.random()*10),
+    dmg: 1 + Math.floor(Math.random()*10),
+    depr: 1 + Math.floor(Math.random()*10),
+  };
+  collection.unshift(nefor);
+  render();
+  closeModal();
+}
+
+function conditionFor(n){
+  if(n === 0) return 'Пока тихо';
+  if(n < 3) return 'Есть движение';
+  if(n < 7) return 'Активно';
+  return 'Аномальная активность';
+}
+
+function render(){
+  emptyState.style.display = collection.length ? 'none' : 'block';
+  grid.innerHTML = collection.map(n => `
+    <div class="card" data-id="${n.id}">
+      <div class="thumb">
+        <img src="${n.img}" alt="${n.name}">
+        <div class="idtag">#${String(n.id).padStart(3,'0')}</div>
+      </div>
+      <div class="body">
+        <div class="name">${n.name}</div>
+        ${bar('жизнь', n.life, 'var(--life)')}
+        ${bar('урон', n.dmg, 'var(--dmg)')}
+        ${bar('депресс.', n.depr, 'var(--depr)')}
+      </div>
+    </div>
+  `).join('');
+
+  const total = collection.length;
+  bigCount.textContent = total;
+  conditionLine.textContent = conditionFor(total);
+  lastLine.textContent = total ? `Последний улов: ${collection[0].name}` : 'Последний улов: —';
+  countStat.textContent = total;
+
+  if(total){
+    const avg = (collection.reduce((s,n)=>s+n.depr,0)/total).toFixed(1);
+    avgStat.textContent = avg + '/10';
+    const top = [...collection].sort((a,b)=>(b.life+b.dmg+b.depr)-(a.life+a.dmg+a.depr))[0];
+    rareStat.textContent = top.name.split(' ')[0];
+    statusStat.textContent = total >= 12 ? 'Почти полон' : 'Есть место';
+  } else {
+    avgStat.textContent = '—';
+    rareStat.textContent = '—';
+    statusStat.textContent = 'Есть место';
+  }
+}
+
+function bar(label, value, color){
+  return `
+    <div class="barrow">
+      <div class="top"><span>${label}</span><span>${value}/10</span></div>
+      <div class="track"><div class="fill" style="width:${value*10}%;background:${color}"></div></div>
+    </div>
+  `;
+}
+
+render();
+</script>
+</body>
+</html>
