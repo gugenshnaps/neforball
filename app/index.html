@@ -70,14 +70,15 @@
     border:3px solid var(--white);
     display:flex; align-items:center; justify-content:center;
     flex-shrink:0;
+    overflow:hidden;
   }
+  .logo img{width:100%; height:100%; object-fit:cover;}
   .logo span{
     font-family:'Archivo Black', sans-serif;
     font-size:20px;
     color:var(--white);
   }
   .brand-text{font-family:'Archivo Black', sans-serif; font-size:15px; line-height:1.15; color:var(--yellow);}
-  .brand-text small{display:block; font-size:15px;}
   .clock{text-align:right; font-family:'Space Mono', monospace; color:var(--white);}
   .clock .time{font-size:17px; font-weight:700;}
   .clock .date{font-size:12px; margin-top:2px; color:var(--white); opacity:0.9;}
@@ -273,8 +274,8 @@
 
   <div class="topbar">
     <div class="brand">
-      <div class="logo"><span>Н</span></div>
-      <div class="brand-text outline">Неформол<small>полевой сбор</small></div>
+      <div class="logo"><img id="userAvatar" src="" alt="" style="display:none;"><span id="userInitial">Н</span></div>
+      <div class="brand-text outline" id="userName">Неформол</div>
     </div>
     <div class="clock">
       <div class="time outline" id="clockTime">--:--:--</div>
@@ -287,8 +288,8 @@
     <div class="onboard-hero">
       <div class="onboard-glyph">🕺</div>
       <div class="onboard-title outline">Создай своего неформала</div>
-      <p class="onboard-sub">Сделай селфи — из него получится твой пиксельный персонаж, с которым ты пойдёшь ловить других неформалов.</p>
-      <button class="mbtn shoot wide" id="createCharBtn">Сделать фото</button>
+      <p class="onboard-sub">Сделай селфи — из него получится твой 8 битный нефор-аватар, с которым ты пойдёшь ловить других неформалов.</p>
+      <button class="mbtn shoot wide" id="createCharBtn">Создать аватара</button>
     </div>
   </div>
 
@@ -363,6 +364,24 @@ if(tg){
   if(tg.MainButton) tg.MainButton.hide();
   if(tg.setHeaderColor) { try{ tg.setHeaderColor('#37497c'); }catch(e){} }
 }
+
+// шапка: ник и аватарка из Telegram вместо статичного лого
+(function initUserBrand(){
+  const user = tg && tg.initDataUnsafe && tg.initDataUnsafe.user;
+  const nameEl = document.getElementById('userName');
+  const avatarImg = document.getElementById('userAvatar');
+  const avatarLetter = document.getElementById('userInitial');
+  if(!user) return;
+  const displayName = user.username ? '@' + user.username : [user.first_name, user.last_name].filter(Boolean).join(' ');
+  if(displayName) nameEl.textContent = displayName;
+  if(user.photo_url){
+    avatarImg.src = user.photo_url;
+    avatarImg.style.display = 'block';
+    avatarLetter.style.display = 'none';
+  } else if(displayName){
+    avatarLetter.textContent = displayName.replace('@','').charAt(0).toUpperCase();
+  }
+})();
 
 // ---- Supabase config (публичные ключи, безопасно светить на клиенте) ----
 const SUPABASE_URL = 'https://cjisrumpcjeyzteaaueh.supabase.co';
