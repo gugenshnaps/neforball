@@ -724,10 +724,10 @@ async function openCamera(){
   video.style.display = 'block';
   canvas.style.display = 'none';
   camHint.innerHTML = captureMode === 'character'
-    ? 'Сделай селфи анфас — из него получится твой персонаж.'
+    ? 'Сфотографируй себя в полный рост — попроси кого-нибудь снять или используй заднюю камеру.'
     : 'Наведи камеру на нефора и держи ровно.';
-  fallbackInput.setAttribute('capture', captureMode === 'character' ? 'user' : 'environment');
-  const facingMode = captureMode === 'character' ? 'user' : 'environment';
+  fallbackInput.setAttribute('capture', 'environment');
+  const facingMode = 'environment';
   try{
     stream = await navigator.mediaDevices.getUserMedia({video:{facingMode}, audio:false});
     video.srcObject = stream;
@@ -801,9 +801,17 @@ function handleFallback(e){
 }
 
 async function handleCharacterCapture(source){
-  processing.classList.add('on');
-  procLabel.textContent = 'РИСУЕМ СПРАЙТ…';
   const rawDataUrl = simpleCrop(source);
+  await tryGenerateCharacter(rawDataUrl);
+}
+
+// генерация иногда занимает больше минуты, а мобильный браузер обрывает
+// соединение раньше — тогда сервер мог уже отработать (и списать деньги),
+// просто ответ не успел дойти. Поэтому при ошибке предлагаем ретрай на том
+// же фото вручную, а не молча дёргаем платную генерацию заново.
+async function tryGenerateCharacter(rawDataUrl){
+  processing.classList.add('on');
+  procLabel.textContent = 'РИСУЕМ СПРАЙТ… ЭТО МОЖЕТ ЗАНЯТЬ ДО МИНУТЫ';
   try{
     const spriteDataUrl = await generateSprite(rawDataUrl);
     processing.classList.remove('on');
@@ -814,7 +822,14 @@ async function handleCharacterCapture(source){
     renderPlayer();
   }catch(err){
     processing.classList.remove('on');
-    alert('Не получилось сгенерировать спрайт: ' + err.message + '\nПопробуй ещё раз.');
+    const retry = confirm(
+      'Не получилось получить спрайт (' + err.message + ').\n' +
+      'Иногда сервер просто не успевает ответить за отведённое время, хотя генерация могла пройти успешно.\n' +
+      'Попробовать ещё раз с этим же фото?'
+    );
+    if(retry){
+      await tryGenerateCharacter(rawDataUrl);
+    }
   }
 }
 
