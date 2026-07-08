@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Песочница анимации спрайта</title>
+<style>
+  :root{ --bg:#12100c; --panel:#1c1912; --line:#3a332a; --bone:#f2ecdd; --dim:#a89a80; --acc:#3fe83f; }
+  *{box-sizing:border-box;}
+  body{background:var(--bg); color:var(--bone); font-family:'Space Mono', monospace; padding:20px; max-width:520px; margin:0 auto;}
+  h1{font-size:18px; margin-bottom:4px;}
+  p.sub{color:var(--dim); font-size:13px; margin-top:0; line-height:1.5;}
+  label{display:block; font-size:12px; color:var(--dim); margin:14px 0 4px; text-transform:uppercase; letter-spacing:0.04em;}
+  select, input[type="file"]{width:100%; background:var(--panel); border:1px solid var(--line); color:var(--bone); padding:10px; border-radius:8px; font-family:inherit; font-size:13px;}
+  input[type="range"]{width:100%;}
+  .val{color:var(--acc); font-weight:700;}
+
+  .stage{
+    margin:20px 0; height:440px;
+    background:linear-gradient(160deg,#5b74ab,#37497c);
+    border:1px solid var(--line); border-radius:14px;
+    display:flex; align-items:flex-end; justify-content:center;
+    overflow:hidden; position:relative;
+  }
+  .ground{position:absolute; bottom:0; left:0; right:0; height:40px; background:rgba(0,0,0,0.25);}
+  #sprite{
+    max-height:88%; max-width:70%;
+    filter:drop-shadow(0 8px 10px rgba(0,0,0,0.5));
+    transform-origin:50% 100%;  /* пивот в ногах — качается как стоящий человек */
+    will-change:transform;
+  }
+
+  /* --amp задаётся ползунком, длительность — тоже */
+  .anim-breathe{ animation:breathe var(--dur,3s) ease-in-out infinite; }
+  .anim-sway{ animation:sway var(--dur,3s) ease-in-out infinite; }
+  .anim-both{ animation:breatheSway var(--dur,3s) ease-in-out infinite; }
+  .anim-sigh{ animation:sigh var(--dur,5s) ease-in-out infinite; }
+  .anim-react{ animation:react 0.5s cubic-bezier(.3,1.6,.5,1); }
+
+  @keyframes breathe{
+    0%,100%{ transform:translateY(0) scaleY(1) scaleX(1); }
+    50%{ transform:translateY(calc(var(--amp)*-0.5px)) scaleY(calc(1 + var(--amp)*0.004)) scaleX(calc(1 - var(--amp)*0.001)); }
+  }
+  @keyframes sway{
+    0%,100%{ transform:rotate(calc(var(--amp)*-0.18deg)); }
+    50%{ transform:rotate(calc(var(--amp)*0.18deg)); }
+  }
+  @keyframes breatheSway{
+    0%,100%{ transform:rotate(calc(var(--amp)*-0.15deg)) translateY(0) scaleY(1); }
+    50%{ transform:rotate(calc(var(--amp)*0.15deg)) translateY(calc(var(--amp)*-0.4px)) scaleY(calc(1 + var(--amp)*0.004)); }
+  }
+  /* вздох: долгий спокойный цикл с одним глубоким вдохом и лёгким оседанием */
+  @keyframes sigh{
+    0%,100%{ transform:translateY(0) scaleY(1); }
+    30%{ transform:translateY(calc(var(--amp)*-1px)) scaleY(calc(1 + var(--amp)*0.01)); }  /* глубокий вдох */
+    45%{ transform:translateY(calc(var(--amp)*0.6px)) scaleY(calc(1 - var(--amp)*0.006)); } /* выдох, чуть осел */
+    60%{ transform:translateY(0) scaleY(1); }
+  }
+  @keyframes react{
+    0%{ transform:scale(1,1); }
+    35%{ transform:scale(1.08,0.92) translateY(6px); }
+    70%{ transform:scale(0.97,1.05) translateY(-8px); }
+    100%{ transform:scale(1,1); }
+  }
+
+  .hint{font-size:11px; color:var(--dim); margin-top:6px; line-height:1.5;}
+  .empty{color:var(--dim); font-size:13px; align-self:center;}
+</style>
+</head>
+<body>
+  <h1>🕹️ Песочница анимации спрайта</h1>
+  <p class="sub">Загрузи готовый спрайт (PNG с прозрачным фоном) и посмотри, как он оживает — без нейросети, чистый CSS. Тапни по персонажу, чтобы увидеть «реакцию».</p>
+
+  <label>Спрайт (PNG)</label>
+  <input type="file" accept="image/png,image/*" id="fileInput">
+
+  <div class="stage" id="stage">
+    <div class="ground"></div>
+    <img id="sprite" alt="" style="display:none;">
+    <div class="empty" id="empty">загрузи спрайт ↑</div>
+  </div>
+
+  <label>Тип анимации</label>
+  <select id="animType">
+    <option value="anim-both" selected>Дыхание + покачивание</option>
+    <option value="anim-breathe">Только дыхание</option>
+    <option value="anim-sway">Только покачивание</option>
+    <option value="anim-sigh">Вздохи (глубокое дыхание)</option>
+    <option value="">Без анимации (замереть)</option>
+  </select>
+
+  <label>Скорость: <span class="val" id="durVal">3.0с</span> на цикл</label>
+  <input type="range" id="dur" min="1.2" max="6" step="0.1" value="3">
+  <div class="hint">меньше — бодрее/нервознее, больше — спокойнее</div>
+
+  <label>Амплитуда: <span class="val" id="ampVal">5</span></label>
+  <input type="range" id="amp" min="1" max="12" step="1" value="5">
+  <div class="hint">насколько сильно качается и «дышит»</div>
+
+<script>
+const sprite = document.getElementById('sprite');
+const empty = document.getElementById('empty');
+const fileInput = document.getElementById('fileInput');
+const animType = document.getElementById('animType');
+const durEl = document.getElementById('dur');
+const ampEl = document.getElementById('amp');
+
+fileInput.addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if(!file) return;
+  const url = URL.createObjectURL(file);
+  sprite.src = url;
+  sprite.style.display = 'block';
+  empty.style.display = 'none';
+  apply();
+});
+
+function apply(){
+  const dur = parseFloat(durEl.value);
+  const amp = parseInt(ampEl.value, 10);
+  document.getElementById('durVal').textContent = dur.toFixed(1) + 'с';
+  document.getElementById('ampVal').textContent = amp;
+  sprite.style.setProperty('--dur', dur + 's');
+  sprite.style.setProperty('--amp', amp);
+  // переставляем класс анимации
+  sprite.className = animType.value;
+}
+
+animType.addEventListener('change', apply);
+durEl.addEventListener('input', apply);
+ampEl.addEventListener('input', apply);
+
+// «реакция» по тапу — короткий отскок, потом возвращаем обычную анимацию
+const stage = document.getElementById('stage');
+stage.addEventListener('click', () => {
+  if(sprite.style.display === 'none') return;
+  const base = animType.value;
+  sprite.className = 'anim-react';
+  sprite.addEventListener('animationend', function once(){
+    sprite.removeEventListener('animationend', once);
+    sprite.className = base;
+  });
+});
+</script>
+</body>
+</html>
