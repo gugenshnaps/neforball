@@ -9,10 +9,16 @@ Telegram Mini App. Игрок создаёт своего персонажа и�
 **Готово и задеплоено:**
 - Хостинг: GitHub Pages (`gugenshnaps.github.io/neforball/`), автодеплой из `main`
   через `.github/workflows/pages.yml`
-- Supabase-проект `neforball` (id `cjisrumpcjeyzteaaueh`), таблица `players`,
-  bucket `nefory-photos`
-- Edge Function `sprite-proxy` — проксирует запрос к OpenRouter, ключ
-  `OPENROUTER_API_KEY` лежит в секретах функции
+- Supabase-проект `neforball` (id `cjisrumpcjeyzteaaueh`), таблицы `players`,
+  `sprite_jobs`, bucket `nefory-photos`
+- Edge Function `sprite-proxy` — **асинхронная**: сразу отдаёт `job_id` и
+  генерирует в фоне через `EdgeRuntime.waitUntil`, клиент опрашивает
+  `sprite_jobs` раз в 2 сек до `done`/`error`. Так сделано специально: у
+  `gpt-image-2` разброс задержки 5–80+ сек, и мобильные браузеры (подтверждено
+  на Telegram iOS) рвут соединение раньше, чем сервер успевает ответить, хотя
+  сама генерация к этому моменту уже прошла и была оплачена. Не возвращать
+  обратно на синхронную схему без веской причины
+- Ключ `OPENROUTER_API_KEY` лежит в секретах функции
 - Генерация спрайта: OpenRouter → **`openai/gpt-image-2`** (осознанный выбор
   после сравнения нескольких моделей — см. `sprite-proxy.ts`, `ALLOWED_MODELS`)
 
