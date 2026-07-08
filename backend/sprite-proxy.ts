@@ -12,7 +12,7 @@ const CORS_HEADERS = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const DEFAULT_MODEL = "google/gemini-2.5-flash-image";
+const DEFAULT_MODEL = "openai/gpt-image-2";
 const ALLOWED_MODELS = [
   "google/gemini-2.5-flash-image",
   "google/gemini-3.1-flash-lite-image",
