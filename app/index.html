@@ -619,10 +619,15 @@ async function ensurePlayer(){
   let p = await loadPlayer();
   if(!p) return null;
   p = applyRollover(p);
+  // каждый заход в приложение: +1 к счётчику и обновляем время последнего входа
+  p.visits = (p.visits || 0) + 1;
+  p.last_seen_at = new Date().toISOString();
   await sb.from('players').update({
     catches_today: p.catches_today,
     life: p.life, dmg: p.dmg, depr: p.depr,
-    last_active_date: p.last_active_date
+    last_active_date: p.last_active_date,
+    visits: p.visits,
+    last_seen_at: p.last_seen_at
   }).eq('telegram_user_id', USER_ID);
   return p;
 }
@@ -645,7 +650,9 @@ async function createPlayerRecord(spriteDataUrl){
     depr: 5, depr_cap: 10,
     jetons: 0,
     catches_today: 0,
-    last_active_date: todayStr()
+    last_active_date: todayStr(),
+    visits: 1,
+    last_seen_at: new Date().toISOString()
   };
   // upsert, а не insert: если предыдущая попытка частично прошла (например,
   // строка уже есть), пересоздание не упадёт на конфликте первичного ключа

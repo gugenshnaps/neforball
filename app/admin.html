@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Неформол — админка</title>
+<style>
+  :root{ --bg:#12100c; --panel:#1c1912; --line:#3a332a; --bone:#f2ecdd; --dim:#a89a80; --acc:#3fe83f; }
+  *{box-sizing:border-box;}
+  body{background:var(--bg); color:var(--bone); font-family:'Space Mono', monospace; padding:20px; max-width:900px; margin:0 auto;}
+  h1{font-size:20px; margin-bottom:4px;}
+  .stats{display:flex; gap:18px; flex-wrap:wrap; margin:14px 0 18px;}
+  .stat{background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px 16px;}
+  .stat .num{font-size:24px; font-weight:700; color:var(--acc);}
+  .stat .lbl{font-size:11px; color:var(--dim); text-transform:uppercase; letter-spacing:0.04em; margin-top:2px;}
+  .bar{display:flex; gap:10px; align-items:center; margin-bottom:14px;}
+  button{
+    padding:10px 16px; border:none; border-radius:8px;
+    background:var(--acc); color:#0a1a0a; font-weight:700; font-size:13px; cursor:pointer;
+    font-family:inherit;
+  }
+  .updated{font-size:11px; color:var(--dim);}
+  .table-wrap{overflow-x:auto; border:1px solid var(--line); border-radius:10px;}
+  table{width:100%; border-collapse:collapse; font-size:12.5px; min-width:640px;}
+  th, td{padding:9px 12px; text-align:left; border-bottom:1px solid var(--line); white-space:nowrap;}
+  th{background:var(--panel); color:var(--dim); text-transform:uppercase; font-size:10px; letter-spacing:0.05em; position:sticky; top:0;}
+  tr:hover td{background:rgba(255,255,255,0.03);}
+  .id{color:var(--dim);}
+  .name{font-weight:700;}
+  .num{text-align:right; color:var(--acc); font-weight:700;}
+  .warn{color:#ffb15c; font-size:11px; margin-top:16px; line-height:1.6;}
+  #err{color:#ff6b6b; font-size:13px; margin-top:12px;}
+</style>
+</head>
+<body>
+  <h1>👥 Неформол — пользователи</h1>
+  <div class="stats" id="stats"></div>
+
+  <div class="bar">
+    <button id="refreshBtn">↻ Обновить</button>
+    <span class="updated" id="updated"></span>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Telegram ID</th>
+          <th>Имя</th>
+          <th class="num">Заходов</th>
+          <th>Последний вход</th>
+          <th>Создан</th>
+          <th class="num">Жизнь/Урон/Депр</th>
+          <th class="num">Жетоны</th>
+        </tr>
+      </thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </div>
+  <div id="err"></div>
+
+  <p class="warn">⚠️ Эта страница читает данные напрямую из базы и сейчас доступна всем, у кого есть ссылка (RLS ещё открыт — временно, на период теста). Никому её не давай и закрой доступ перед реальным запуском.</p>
+
+<script>
+const SUPABASE_URL = 'https://cjisrumpcjeyzteaaueh.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_OSZ17Yj0e27sLRMBKCAnOQ_8lMUHZFG';
+
+function fmt(ts){
+  if(!ts) return '—';
+  const d = new Date(ts);
+  if(isNaN(d)) return '—';
+  return d.toLocaleString('ru-RU', { day:'2-digit', month:'2-digit', year:'2-digit', hour:'2-digit', minute:'2-digit' });
+}
+
+function ago(ts){
+  if(!ts) return '';
+  const diff = Date.now() - new Date(ts).getTime();
+  const min = Math.floor(diff / 60000);
+  if(min < 1) return 'только что';
+  if(min < 60) return `${min} мин назад`;
+  const hrs = Math.floor(min / 60);
+  if(hrs < 24) return `${hrs} ч назад`;
+  const days = Math.floor(hrs / 24);
+  return `${days} дн назад`;
+}
+
+async function load(){
+  document.getElementById('err').textContent = '';
+  try{
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/players?select=*&order=last_seen_at.desc.nullslast`, {
+      headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` }
+    });
+    if(!res.ok) throw new Error('HTTP ' + res.status + ': ' + await res.text());
+    const players = await res.json();
+    render(players);
+    document.getElementById('updated').textContent = 'обновлено ' + fmt(new Date().toISOString());
+  }catch(err){
+    document.getElementById('err').textContent = 'Не удалось загрузить: ' + err.message;
+  }
+}
+
+function render(players){
+  const total = players.length;
+  const totalVisits = players.reduce((s,p) => s + (p.visits || 0), 0);
+  const dayAgo = Date.now() - 86400000;
+  const activeToday = players.filter(p => p.last_seen_at && new Date(p.last_seen_at).getTime() > dayAgo).length;
+
+  document.getElementById('stats').innerHTML = `
+    <div class="stat"><div class="num">${total}</div><div class="lbl">всего игроков</div></div>
+    <div class="stat"><div class="num">${activeToday}</div><div class="lbl">заходили за 24ч</div></div>
+    <div class="stat"><div class="num">${totalVisits}</div><div class="lbl">всего заходов</div></div>
+  `;
+
+  document.getElementById('rows').innerHTML = players.map((p, i) => `
+    <tr>
+      <td>${i + 1}</td>
+      <td class="id">${p.telegram_user_id}</td>
+      <td class="name">${p.name || '—'}</td>
+      <td class="num">${p.visits || 0}</td>
+      <td>${fmt(p.last_seen_at)}<br><span class="id">${ago(p.last_seen_at)}</span></td>
+      <td>${fmt(p.created_at)}</td>
+      <td class="num">${p.life}/${p.dmg}/${p.depr}</td>
+      <td class="num">${p.jetons}</td>
+    </tr>
+  `).join('') || '<tr><td colspan="8" style="text-align:center;color:var(--dim);padding:24px;">Пока нет ни одного игрока</td></tr>';
+}
+
+document.getElementById('refreshBtn').addEventListener('click', load);
+load();
+</script>
+</body>
+</html>
