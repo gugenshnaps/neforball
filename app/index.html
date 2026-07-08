@@ -465,6 +465,23 @@ function simpleCrop(source){
   return canvas.toDataURL('image/png');
 }
 
+// для создания персонажа кроп по центру в квадрат — плохая идея: если человек
+// в полный рост и лицо не в центре кадра, кроп мог отрезать голову, и модели
+// нечего было сохранять. Берём кадр целиком (только уменьшаем по большей
+// стороне, чтобы не гонять слишком тяжёлые фото), без обрезки контента.
+function fullFrame(source, maxSide){
+  maxSide = maxSide || 1024;
+  const sw = source.videoWidth || source.naturalWidth || source.width;
+  const sh = source.videoHeight || source.naturalHeight || source.height;
+  const scale = Math.min(1, maxSide / Math.max(sw, sh));
+  const w = Math.round(sw * scale);
+  const h = Math.round(sh * scale);
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  c.getContext('2d').drawImage(source, 0, 0, w, h);
+  return c.toDataURL('image/png');
+}
+
 async function stylize(source){
   const sw = source.videoWidth || source.width;
   const sh = source.videoHeight || source.height;
@@ -830,7 +847,7 @@ function handleFallback(e){
 }
 
 async function handleCharacterCapture(source){
-  const rawDataUrl = simpleCrop(source);
+  const rawDataUrl = fullFrame(source);
   await tryGenerateCharacter(rawDataUrl);
 }
 
