@@ -192,6 +192,15 @@
   }
   .shop-btn:disabled{opacity:0.35; cursor:default;}
 
+  .reset-link{
+    display:block; margin:14px auto 0;
+    background:transparent; border:1px dashed rgba(255,255,255,0.35);
+    color:var(--white); opacity:0.55;
+    font-family:'Space Mono', monospace; font-size:11px;
+    padding:8px 14px; border-radius:20px; cursor:pointer;
+  }
+  .reset-link:active{opacity:0.9;}
+
   /* modal (camera) */
   .modal{
     position:fixed; inset:0;
@@ -326,6 +335,8 @@
       <div class="district">Магазин</div>
       <div id="shopRows"></div>
     </div>
+
+    <button class="reset-link" id="resetCharBtn">↻ пересоздать персонажа</button>
   </div>
 
   <!-- камера (переиспользуется и для создания персонажа, и для ловли) -->
@@ -721,6 +732,18 @@ function showGame(){
   document.getElementById('onboardingPanel').style.display = 'none';
   document.getElementById('gameRoot').style.display = 'block';
 }
+
+// служебная кнопка для тестирования — удаляет персонажа и возвращает на онбординг
+document.getElementById('resetCharBtn').addEventListener('click', async () => {
+  if(!confirm('Удалить текущего персонажа и создать заново? Прогресс (статы, жетоны) пропадёт.')) return;
+  const { error } = await sb.from('players').delete().eq('telegram_user_id', USER_ID);
+  if(error){
+    alert('Не удалось удалить персонажа: ' + error.message);
+    return;
+  }
+  player = null;
+  showOnboarding();
+});
 
 // ---- камера ----
 
