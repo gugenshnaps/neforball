@@ -1,10 +1,12 @@
 // Supabase Edge Function: sprite-proxy
-// Принимает { prompt, imageDataUrl } от клиента, сам стучится в OpenRouter
-// (сервер-сервер запрос — CORS тут не при чём), и возвращает результат.
+// Асинхронная генерация: клиент шлёт { prompt, imageDataUrl, model } и сразу
+// получает { job_id }, а сама генерация (может занимать больше минуты)
+// продолжается в фоне через EdgeRuntime.waitUntil — так соединение с клиентом
+// не держится открытым и мобильный браузер не обрывает его по таймауту.
+// Результат/ошибка пишутся в таблицу public.sprite_jobs, клиент опрашивает её.
 //
-// Куда положить: Supabase Dashboard → Edge Functions → Deploy a new function → Via Editor
-// Имя функции: sprite-proxy
-// Секрет: Edge Functions → Manage secrets → добавить OPENROUTER_API_KEY = твой ключ
+// Секреты функции: OPENROUTER_API_KEY (свой). SUPABASE_URL и
+// SUPABASE_SERVICE_ROLE_KEY подставляются Supabase автоматически.
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -23,36 +25,33 @@ const ALLOWED_MODELS = [
   "openai/gpt-image-1",
 ];
 
-Deno.serve(async (req) => {
-  // preflight
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: CORS_HEADERS });
-  }
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
+function jsonResponse(body: unknown, status: number) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+  });
+}
+
+async function updateJob(jobId: string, fields: Record<string, unknown>) {
+  await fetch(`${SUPABASE_URL}/rest/v1/sprite_jobs?id=eq.${jobId}`, {
+    method: "PATCH",
+    headers: {
+      apikey: SERVICE_ROLE_KEY,
+      Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
+      "Content-Type": "application/json",
+      Prefer: "return=minimal",
+    },
+    body: JSON.stringify(fields),
+  });
+}
+
+async function processJob(jobId: string, prompt: string, imageDataUrl: string, model: string) {
   try {
-    const { prompt, imageDataUrl, model } = await req.json();
-
-    if (!prompt || !imageDataUrl) {
-      return new Response(
-        JSON.stringify({ error: "Нужны оба поля: prompt и imageDataUrl" }),
-        { status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
-      );
-    }
-
-    if (model && !ALLOWED_MODELS.includes(model)) {
-      return new Response(
-        JSON.stringify({ error: `Модель "${model}" не в списке разрешённых: ${ALLOWED_MODELS.join(", ")}` }),
-        { status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
-      );
-    }
-
     const apiKey = Deno.env.get("OPENROUTER_API_KEY");
-    if (!apiKey) {
-      return new Response(
-        JSON.stringify({ error: "OPENROUTER_API_KEY не задан в секретах функции" }),
-        { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
-      );
-    }
+    if (!apiKey) throw new Error("OPENROUTER_API_KEY не задан в секретах функции");
 
     const upstream = await fetch("https://openrouter.ai/api/v1/images", {
       method: "POST",
@@ -61,7 +60,7 @@ Deno.serve(async (req) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: model || DEFAULT_MODEL,
+        model,
         prompt,
         input_references: [
           { type: "image_url", image_url: { url: imageDataUrl } },
@@ -69,17 +68,69 @@ Deno.serve(async (req) => {
       }),
     });
 
-    const text = await upstream.text();
+    const raw = await upstream.text();
+    if (!upstream.ok) throw new Error(raw);
 
-    return new Response(text, {
-      status: upstream.status,
-      headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+    const data = JSON.parse(raw);
+    const b64 =
+      data?.data?.[0]?.b64_json ||
+      data?.images?.[0]?.b64_json ||
+      data?.images?.[0]?.image_url?.url ||
+      data?.output?.[0]?.b64_json ||
+      null;
+
+    if (!b64) throw new Error("Не нашли картинку в ответе провайдера");
+
+    await updateJob(jobId, { status: "done", result_b64: b64 });
+  } catch (err) {
+    await updateJob(jobId, { status: "error", error_message: String(err) });
+  }
+}
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: CORS_HEADERS });
+  }
+
+  try {
+    const { prompt, imageDataUrl, model } = await req.json();
+
+    if (!prompt || !imageDataUrl) {
+      return jsonResponse({ error: "Нужны оба поля: prompt и imageDataUrl" }, 400);
+    }
+
+    if (model && !ALLOWED_MODELS.includes(model)) {
+      return jsonResponse(
+        { error: `Модель "${model}" не в списке разрешённых: ${ALLOWED_MODELS.join(", ")}` },
+        400
+      );
+    }
+
+    const insertRes = await fetch(`${SUPABASE_URL}/rest/v1/sprite_jobs`, {
+      method: "POST",
+      headers: {
+        apikey: SERVICE_ROLE_KEY,
+        Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
+        "Content-Type": "application/json",
+        Prefer: "return=representation",
+      },
+      body: JSON.stringify({ status: "pending" }),
     });
 
+    if (!insertRes.ok) {
+      const errText = await insertRes.text();
+      return jsonResponse({ error: `Не удалось создать задачу: ${errText}` }, 500);
+    }
+
+    const [job] = await insertRes.json();
+    const jobId = job.id;
+
+    // @ts-ignore EdgeRuntime доступен в среде выполнения Supabase Edge Functions
+    EdgeRuntime.waitUntil(processJob(jobId, prompt, imageDataUrl, model || DEFAULT_MODEL));
+
+    return jsonResponse({ job_id: jobId }, 202);
+
   } catch (err) {
-    return new Response(
-      JSON.stringify({ error: String(err) }),
-      { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
-    );
+    return jsonResponse({ error: String(err) }, 500);
   }
 });

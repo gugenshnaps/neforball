@@ -513,6 +513,10 @@ function cutMagenta(imgSrc){
   });
 }
 
+// генерация асинхронная: proxy сразу отдаёт job_id и продолжает работу в
+// фоне, а мы опрашиваем таблицу sprite_jobs, пока статус не сменится —
+// так можно ждать сколько угодно, не держа одно долгое HTTP-соединение,
+// которое мобильный браузер обрывает по таймауту.
 async function generateSprite(rawDataUrl){
   const res = await fetch(SPRITE_PROXY_URL, {
     method: 'POST',
@@ -527,15 +531,26 @@ async function generateSprite(rawDataUrl){
   if(!res.ok) throw new Error(raw);
   let data;
   try{ data = JSON.parse(raw); } catch(e){ throw new Error('Не удалось разобрать ответ сервера'); }
-  const b64 =
-    data?.data?.[0]?.b64_json ||
-    data?.images?.[0]?.b64_json ||
-    data?.images?.[0]?.image_url?.url ||
-    data?.output?.[0]?.b64_json ||
-    null;
-  if(!b64) throw new Error('Не нашли картинку в ответе сервера');
+  if(!data.job_id) throw new Error('Сервер не вернул job_id');
+  const b64 = await pollSpriteJob(data.job_id);
   const imgSrc = b64.startsWith('data:') ? b64 : `data:image/png;base64,${b64}`;
   return await cutMagenta(imgSrc);
+}
+
+async function pollSpriteJob(jobId){
+  const start = Date.now();
+  const maxWaitMs = 5 * 60 * 1000; // страховочный потолок на случай зависшей задачи
+  const pollEveryMs = 2000;
+  while(true){
+    const { data, error } = await sb.from('sprite_jobs').select('*').eq('id', jobId).maybeSingle();
+    if(error) throw new Error(error.message);
+    if(data && data.status === 'done') return data.result_b64;
+    if(data && data.status === 'error') throw new Error(data.error_message || 'Генерация не удалась');
+    if(Date.now() - start > maxWaitMs) throw new Error('Превышено время ожидания генерации');
+    const waited = Math.round((Date.now() - start) / 1000);
+    procLabel.textContent = `РИСУЕМ СПРАЙТ… ${waited} СЕК`;
+    await new Promise(r => setTimeout(r, pollEveryMs));
+  }
 }
 
 // ---- игрок: загрузка, декей, дневной сброс ----
@@ -805,13 +820,12 @@ async function handleCharacterCapture(source){
   await tryGenerateCharacter(rawDataUrl);
 }
 
-// генерация иногда занимает больше минуты, а мобильный браузер обрывает
-// соединение раньше — тогда сервер мог уже отработать (и списать деньги),
-// просто ответ не успел дойти. Поэтому при ошибке предлагаем ретрай на том
-// же фото вручную, а не молча дёргаем платную генерацию заново.
+// при реальной ошибке генерации (не таймауте — тех теперь нет благодаря
+// асинхронному job'у) предлагаем ретрай на том же фото вручную, а не молча
+// дёргаем платную генерацию заново.
 async function tryGenerateCharacter(rawDataUrl){
   processing.classList.add('on');
-  procLabel.textContent = 'РИСУЕМ СПРАЙТ… ЭТО МОЖЕТ ЗАНЯТЬ ДО МИНУТЫ';
+  procLabel.textContent = 'РИСУЕМ СПРАЙТ…';
   try{
     const spriteDataUrl = await generateSprite(rawDataUrl);
     processing.classList.remove('on');

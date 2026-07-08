@@ -140,35 +140,48 @@ genBtn.addEventListener('click', async () => {
     let data;
     try{ data = JSON.parse(raw); } catch(e){ log('⚠️ Ответ не в JSON:'); log(raw); return; }
 
-    // response shape isn't fixed across providers — try the common spots
-    let b64 =
-      data?.data?.[0]?.b64_json ||
-      data?.images?.[0]?.b64_json ||
-      data?.images?.[0]?.image_url?.url ||
-      data?.output?.[0]?.b64_json ||
-      null;
-
-    if(!b64){
-      log('⚠️ Не нашёл base64-картинку по известным путям, вот сырой ответ:');
+    if(!data.job_id){
+      log('⚠️ Сервер не вернул job_id, вот сырой ответ:');
       log(data);
       return;
     }
 
+    log(`→ задача создана (${data.job_id}), опрашиваю статус…`);
+    const b64 = await pollSpriteJob(data.job_id, supaKey);
+
     const imgSrc = b64.startsWith('data:') ? b64 : `data:image/png;base64,${b64}`;
     await processSprite(imgSrc);
-    if(data?.usage?.cost != null){
-      log(`💰 Стоимость этой генерации: $${data.usage.cost}`);
-    }
     log('✅ Готово. Если фон не убрался полностью — модель могла не выдержать точный magenta, попробуй поменять промпт.');
 
   }catch(err){
-    log('❌ Сетевая ошибка при обращении к прокси:');
+    log('❌ Ошибка при обращении к прокси:');
     log(String(err));
   }finally{
     genBtn.disabled = false;
     genBtn.textContent = 'Сгенерировать спрайт';
   }
 });
+
+// генерация асинхронная: proxy сразу отдаёт job_id и обрабатывает в фоне,
+// опрашиваем таблицу sprite_jobs через REST, пока статус не сменится
+const SUPABASE_URL = 'https://cjisrumpcjeyzteaaueh.supabase.co';
+async function pollSpriteJob(jobId, supaKey){
+  const start = Date.now();
+  const maxWaitMs = 5 * 60 * 1000;
+  while(true){
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/sprite_jobs?id=eq.${jobId}&select=*`, {
+      headers: { apikey: supaKey, Authorization: `Bearer ${supaKey}` }
+    });
+    const rows = await res.json();
+    const job = rows[0];
+    if(job && job.status === 'done') return job.result_b64;
+    if(job && job.status === 'error') throw new Error(job.error_message || 'Генерация не удалась');
+    if(Date.now() - start > maxWaitMs) throw new Error('Превышено время ожидания генерации');
+    const waited = Math.round((Date.now() - start) / 1000);
+    genBtn.textContent = `Генерирую… ${waited}с`;
+    await new Promise(r => setTimeout(r, 2000));
+  }
+}
 
 // remove near-magenta background client-side, so we don't need to pay for "transparent output"
 function processSprite(imgSrc){
