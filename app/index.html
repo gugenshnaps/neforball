@@ -8,11 +8,11 @@
 <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/selfie_segmentation.js"></script>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   :root{
     --panel-bg:rgba(41,58,102,0.55);
     --panel-border:rgba(255,255,255,0.18);
-    --ticker-bg:#182035;
     --yellow:#f5e35c;
     --white:#f4f1e8;
     --green:#3fe83f;
@@ -36,7 +36,7 @@
     max-width:430px;
     min-height:100vh;
     position:relative;
-    padding-bottom:78px;
+    padding-bottom:24px;
     overflow-x:hidden;
     background:
       linear-gradient(160deg, #6a4f9e 0%, #8a5f92 18%, #c98a52 38%, #8a76a0 55%, #5b74ab 72%, #37497c 100%);
@@ -99,185 +99,99 @@
     align-items:center;
     text-align:center;
   }
-  .bignum{
-    font-family:'Archivo Black', sans-serif;
-    font-size:52px;
-    color:var(--white);
+
+  /* character */
+  .char-thumb{
+    width:60%; margin:0 auto;
+    aspect-ratio:1/1;
+    background:#101a30;
+    border-radius:16px;
+    position:relative;
+    overflow:hidden;
   }
-  .bignum-lbl{
-    font-family:'Space Mono', monospace;
-    font-size:12px;
-    letter-spacing:0.08em;
-    color:var(--white);
-    opacity:0.85;
-    margin-top:-4px;
-    text-transform:uppercase;
+  .char-thumb img{
+    width:100%; height:100%;
+    object-fit:contain;
+    filter:drop-shadow(0 6px 12px rgba(0,0,0,0.6));
+    padding:10%;
+    box-sizing:border-box;
   }
-  .condition{
+  .char-name{
+    text-align:center;
     font-family:'Archivo Black', sans-serif;
     font-size:19px;
-    color:var(--yellow);
-    margin-top:6px;
+    color:var(--white);
+    margin:14px 0 16px;
   }
-  .ball-icon{width:112px; height:112px; margin:14px 0 6px;}
+  .stat-bars{width:100%;}
+  .barrow{margin-bottom:12px; text-align:left;}
+  .barrow:last-child{margin-bottom:0;}
+  .barrow .top{
+    display:flex; justify-content:space-between;
+    font-size:11px; color:var(--white); opacity:0.9;
+    text-transform:uppercase; letter-spacing:0.04em;
+    margin-bottom:5px; font-weight:700;
+  }
+  .track{height:8px; background:rgba(0,0,0,0.35); border-radius:5px; overflow:hidden;}
+  .fill{height:100%; transition:width 0.3s ease;}
+
+  .jetons-line{
+    font-family:'Archivo Black', sans-serif;
+    font-size:16px;
+    color:var(--yellow);
+    margin-top:16px;
+  }
+
+  .ball-icon{width:84px; height:84px; margin:16px 0 4px;}
   .subline{
     font-size:13px;
     color:var(--white);
-    margin-top:8px;
+    margin-top:2px;
     font-weight:700;
   }
 
-  .divider{
-    height:1px;
-    background:rgba(255,255,255,0.22);
-    margin:18px 0 12px;
+  .mbtn{
+    padding:14px;
+    font-family:'Space Mono', monospace; font-weight:700; font-size:12px;
+    text-transform:uppercase; letter-spacing:0.05em;
+    border:1px solid var(--panel-border); border-radius:10px;
+    background:var(--panel-bg); color:var(--white); cursor:pointer;
   }
+  .mbtn.shoot{background:var(--green); color:#0a1a0a; border-color:var(--green-dim); font-family:'Archivo Black', sans-serif;}
+  .mbtn.wide{width:100%; margin-top:14px;}
+  .mbtn:disabled{opacity:0.35; cursor:default;}
+
+  /* onboarding */
+  .onboard-hero{text-align:center; padding:10px 4px 4px;}
+  .onboard-glyph{font-size:40px; margin-bottom:10px;}
+  .onboard-title{font-family:'Archivo Black', sans-serif; font-size:19px; color:var(--yellow); margin-bottom:10px;}
+  .onboard-sub{font-size:13px; line-height:1.6; color:var(--white); font-weight:700; opacity:0.92; margin:0;}
+
+  /* shop */
   .district{
     font-family:'Archivo Black', sans-serif;
     font-size:15px;
     color:var(--yellow);
     margin-bottom:10px;
   }
-  .rows .row{
-    display:flex;
-    justify-content:space-between;
-    align-items:baseline;
-    padding:6px 0;
-    font-size:13.5px;
-    font-weight:700;
+  .shop-row{
+    display:flex; justify-content:space-between; align-items:center;
+    padding:10px 0;
     border-bottom:1px dashed rgba(255,255,255,0.14);
   }
-  .rows .row:last-child{border-bottom:none;}
-  .rows .row .v{color:var(--white);}
+  .shop-row:last-child{border-bottom:none;}
+  .shop-label{font-size:12.5px; font-weight:700;}
+  .shop-label .v{color:var(--yellow); margin-left:6px;}
+  .shop-btns{display:flex; gap:6px; flex-shrink:0;}
+  .shop-btn{
+    font-family:'Space Mono', monospace; font-size:9.5px; font-weight:700;
+    padding:7px 8px; border-radius:8px;
+    border:1px solid var(--panel-border); background:rgba(0,0,0,0.25);
+    color:var(--white); cursor:pointer; white-space:nowrap;
+  }
+  .shop-btn:disabled{opacity:0.35; cursor:default;}
 
-  /* legend chips */
-  .legend{
-    display:flex;
-    flex-wrap:wrap;
-    gap:14px;
-    padding:14px 18px 2px;
-    font-size:10px;
-    color:var(--white);
-    position:relative; z-index:2;
-  }
-  .legend span{display:flex;align-items:center;gap:5px;text-transform:uppercase;font-weight:700;}
-  .dot{width:9px;height:9px;border-radius:2px;display:inline-block;border:1px solid rgba(0,0,0,0.5);}
-
-  /* collection section */
-  .section-title{
-    padding:20px 18px 8px;
-    font-family:'Archivo Black', sans-serif;
-    font-size:16px;
-    color:var(--yellow);
-    position:relative; z-index:2;
-  }
-  .grid{
-    display:grid;
-    grid-template-columns:1fr 1fr;
-    gap:12px;
-    padding:0 16px 14px;
-    position:relative; z-index:2;
-  }
-  .empty{
-    margin:6px 16px 0;
-    background:var(--panel-bg);
-    border:1px solid var(--panel-border);
-    border-radius:16px;
-    padding:28px 18px;
-    text-align:center;
-    position:relative; z-index:2;
-  }
-  .empty .glyph{font-size:28px; margin-bottom:8px;}
-  .empty p{margin:0; font-size:13px; color:var(--white); line-height:1.6; font-weight:700;}
-  .empty .accent{color:var(--yellow);}
-
-  .card{
-    background:var(--panel-bg);
-    border:1px solid var(--panel-border);
-    border-radius:14px;
-    overflow:hidden;
-    animation:pop 0.35s ease;
-    cursor:pointer;
-  }
-  @keyframes pop{from{transform:scale(0.85);opacity:0;} to{transform:scale(1);opacity:1;}}
-  .card .thumb{
-    width:100%; aspect-ratio:1/1;
-    background:#101a30;
-    position:relative;
-  }
-  .card .thumb img{
-    width:100%; height:100%;
-    object-fit:contain;
-    filter:drop-shadow(0 5px 8px rgba(0,0,0,0.6));
-    padding:12%;
-    box-sizing:border-box;
-  }
-  .card .idtag{
-    position:absolute; top:6px; left:6px;
-    background:var(--yellow);
-    color:#1a1330;
-    font-family:'Archivo Black', sans-serif;
-    font-size:9px;
-    padding:2px 6px;
-    border-radius:4px;
-  }
-  .card .body{padding:9px 10px 11px;}
-  .card .name{
-    font-family:'Archivo Black', sans-serif;
-    font-size:11px;
-    color:var(--white);
-    margin-bottom:8px;
-    line-height:1.2;
-  }
-  .barrow{margin-bottom:5px;}
-  .barrow:last-child{margin-bottom:0;}
-  .barrow .top{
-    display:flex; justify-content:space-between;
-    font-size:8px; color:var(--white); opacity:0.85;
-    text-transform:uppercase; letter-spacing:0.03em;
-    margin-bottom:2px; font-weight:700;
-  }
-  .track{height:5px; background:rgba(0,0,0,0.35); border-radius:3px; overflow:hidden;}
-  .fill{height:100%;}
-
-  .note{
-    margin:6px 18px 4px;
-    font-size:9px;
-    color:var(--white);
-    opacity:0.65;
-    line-height:1.6;
-    position:relative; z-index:2;
-  }
-
-  /* bottom ticker CTA */
-  .ticker{
-    position:fixed; bottom:0; left:0; right:0;
-    background:var(--ticker-bg);
-    border-top:1px solid rgba(255,255,255,0.15);
-    display:flex; align-items:center; justify-content:space-between;
-    padding:14px 16px calc(14px + env(safe-area-inset-bottom));
-    cursor:pointer;
-    max-width:430px;
-    margin:0 auto;
-    z-index:10;
-  }
-  .ticker .txt{
-    font-family:'Archivo Black', sans-serif;
-    font-size:14px;
-    color:var(--white);
-    letter-spacing:0.02em;
-  }
-  .go-btn{
-    width:38px; height:38px;
-    background:var(--green);
-    border:2px solid var(--green-dim);
-    border-radius:8px;
-    display:flex; align-items:center; justify-content:center;
-    flex-shrink:0;
-  }
-  .go-btn svg{width:16px; height:16px;}
-
-  /* modal */
+  /* modal (camera) */
   .modal{
     position:fixed; inset:0;
     background:rgba(10,8,20,0.94);
@@ -306,7 +220,7 @@
   .processing.on{display:flex;}
   .spinner{width:32px;height:32px;border:3px solid rgba(255,255,255,0.2);border-top-color:var(--green);border-radius:50%;animation:spin 0.8s linear infinite;}
   @keyframes spin{to{transform:rotate(360deg);}}
-  .processing p{font-family:'Archivo Black', sans-serif; font-size:12px; color:var(--white); text-transform:uppercase;}
+  .processing p{font-family:'Archivo Black', sans-serif; font-size:12px; color:var(--white); text-transform:uppercase; text-align:center; padding:0 20px;}
 
   .catch-overlay{
     position:absolute; inset:0;
@@ -347,95 +261,10 @@
     100%{opacity:1; transform:scale(1);}
   }
 
-  @keyframes cardGlow{
-    0%{box-shadow:0 0 0 0 rgba(245,227,92,0);}
-    25%{box-shadow:0 0 0 3px rgba(245,227,92,0.9), 0 0 18px 4px rgba(245,227,92,0.5);}
-    100%{box-shadow:0 0 0 0 rgba(245,227,92,0);}
-  }
-  .grid .card:first-child{animation:pop 0.35s ease, cardGlow 1.3s ease-out;}
-
-  .demo-fill{
-    display:inline-flex; align-items:center; gap:6px;
-    margin:0 18px 10px;
-    padding:6px 12px;
-    font-size:10px;
-    color:var(--white);
-    opacity:0.55;
-    border:1px dashed rgba(255,255,255,0.35);
-    border-radius:20px;
-    background:transparent;
-    cursor:pointer;
-    position:relative; z-index:2;
-  }
-  .demo-fill:active{opacity:0.9;}
-
   .modal-controls{display:flex; gap:12px; margin-top:18px; width:100%; max-width:390px;}
-  .mbtn{
-    flex:1; padding:14px;
-    font-family:'Space Mono', monospace; font-weight:700; font-size:12px;
-    text-transform:uppercase; letter-spacing:0.05em;
-    border:1px solid var(--panel-border); border-radius:10px;
-    background:var(--panel-bg); color:var(--white); cursor:pointer;
-  }
-  .mbtn.shoot{background:var(--green); color:#0a1a0a; border-color:var(--green-dim); font-family:'Archivo Black', sans-serif;}
+  .modal-controls .mbtn{flex:1;}
   .hint{font-size:11px; color:var(--white); opacity:0.8; margin-top:12px; text-align:center; max-width:340px; line-height:1.5;}
   .fallback-input{display:none;}
-
-  .detail-panel{
-    width:100%; max-width:360px;
-    background:var(--panel-bg);
-    border:1px solid var(--panel-border);
-    border-radius:20px;
-    padding:22px 20px 24px;
-    position:relative;
-    backdrop-filter:blur(2px);
-  }
-  .detail-close{
-    position:absolute; top:14px; right:14px;
-    width:30px; height:30px;
-    border-radius:50%;
-    border:1px solid var(--panel-border);
-    background:rgba(0,0,0,0.3);
-    color:var(--white);
-    font-size:14px;
-    cursor:pointer;
-  }
-  .detail-thumb{
-    width:60%; margin:0 auto;
-    aspect-ratio:1/1;
-    background:#101a30;
-    border-radius:16px;
-    position:relative;
-    overflow:hidden;
-  }
-  .detail-thumb img{
-    width:100%; height:100%;
-    object-fit:contain;
-    filter:drop-shadow(0 6px 12px rgba(0,0,0,0.6));
-    padding:10%;
-    box-sizing:border-box;
-  }
-  .detail-thumb .idtag{
-    position:absolute; top:8px; left:8px;
-    background:var(--yellow); color:#1a1330;
-    font-family:'Archivo Black', sans-serif;
-    font-size:10px; padding:2px 7px; border-radius:5px;
-  }
-  .detail-name{
-    text-align:center;
-    font-family:'Archivo Black', sans-serif;
-    font-size:20px;
-    color:var(--white);
-    margin:16px 0 18px;
-  }
-  #detailBars .barrow{margin-bottom:14px;}
-  #detailBars .top{
-    display:flex; justify-content:space-between;
-    font-size:11px; color:var(--white); opacity:0.9;
-    text-transform:uppercase; letter-spacing:0.04em;
-    margin-bottom:5px; font-weight:700;
-  }
-  #detailBars .track{height:9px; border-radius:5px;}
 </style>
 </head>
 <body>
@@ -445,7 +274,7 @@
   <div class="topbar">
     <div class="brand">
       <div class="logo"><span>Н</span></div>
-      <div class="brand-text outline">Полевой<small>сбор</small></div>
+      <div class="brand-text outline">Неформол<small>полевой сбор</small></div>
     </div>
     <div class="clock">
       <div class="time outline" id="clockTime">--:--:--</div>
@@ -453,64 +282,52 @@
     </div>
   </div>
 
-  <div class="panel">
-    <div class="hero-row">
-      <svg class="ball-icon" viewBox="0 0 200 200">
-        <defs>
-          <radialGradient id="sheen" cx="32%" cy="26%" r="75%">
-            <stop offset="0%" stop-color="#4a4a4a"/>
-            <stop offset="45%" stop-color="#1c1c1c"/>
-            <stop offset="100%" stop-color="#000"/>
-          </radialGradient>
-        </defs>
-        <circle cx="100" cy="100" r="90" fill="url(#sheen)" stroke="#000" stroke-width="6"/>
-        <rect x="10" y="92" width="180" height="16" fill="#0a0a0a" stroke="#000" stroke-width="2"/>
-        <circle cx="100" cy="100" r="26" fill="#0a0a0a" stroke="#000" stroke-width="6"/>
-        <circle cx="100" cy="100" r="16" fill="#2a2a2a" stroke="#000" stroke-width="3"/>
-      </svg>
-      <div class="bignum outline" id="bigCount">0</div>
-      <div class="bignum-lbl">нефоров в шаре</div>
-      <div class="condition outline" id="conditionLine">Пока тихо</div>
-      <div class="subline" id="lastLine">Последний улов: —</div>
-    </div>
-
-    <div class="divider"></div>
-    <div class="district">Городские улицы</div>
-    <div class="rows">
-      <div class="row"><span>Поймано всего:</span><span class="v" id="countStat">0</span></div>
-      <div class="row"><span>Средняя устойчивость:</span><span class="v" id="avgStat">—</span></div>
-      <div class="row"><span>Топ вид:</span><span class="v" id="rareStat">—</span></div>
-      <div class="row"><span>Статус шара:</span><span class="v" id="statusStat">Есть место</span></div>
+  <!-- onboarding: создание персонажа -->
+  <div class="panel" id="onboardingPanel">
+    <div class="onboard-hero">
+      <div class="onboard-glyph">🕺</div>
+      <div class="onboard-title outline">Создай своего неформала</div>
+      <p class="onboard-sub">Сделай селфи — из него получится твой пиксельный персонаж, с которым ты пойдёшь ловить других неформалов.</p>
+      <button class="mbtn shoot wide" id="createCharBtn">Сделать фото</button>
     </div>
   </div>
 
-  <div class="legend">
-    <span><i class="dot" style="background:var(--life)"></i>жизнь</span>
-    <span><i class="dot" style="background:var(--dmg)"></i>урон</span>
-    <span><i class="dot" style="background:var(--depr)"></i>устойч. к депрессии</span>
-  </div>
+  <!-- основная игра -->
+  <div id="gameRoot" style="display:none;">
+    <div class="panel">
+      <div class="hero-row">
+        <div class="char-thumb">
+          <img id="charSprite" src="" alt="персонаж">
+        </div>
+        <div class="char-name outline" id="charName">—</div>
+        <div class="stat-bars" id="charStatsBars"></div>
+        <div class="jetons-line outline" id="jetonsLine">💰 0 жетонов</div>
 
-  <div class="section-title outline">Коллекция</div>
+        <svg class="ball-icon" viewBox="0 0 200 200">
+          <defs>
+            <radialGradient id="sheen" cx="32%" cy="26%" r="75%">
+              <stop offset="0%" stop-color="#4a4a4a"/>
+              <stop offset="45%" stop-color="#1c1c1c"/>
+              <stop offset="100%" stop-color="#000"/>
+            </radialGradient>
+          </defs>
+          <circle cx="100" cy="100" r="90" fill="url(#sheen)" stroke="#000" stroke-width="6"/>
+          <rect x="10" y="92" width="180" height="16" fill="#0a0a0a" stroke="#000" stroke-width="2"/>
+          <circle cx="100" cy="100" r="26" fill="#0a0a0a" stroke="#000" stroke-width="6"/>
+          <circle cx="100" cy="100" r="16" fill="#2a2a2a" stroke="#000" stroke-width="3"/>
+        </svg>
+        <div class="subline" id="attemptsLine">Осталось попыток сегодня: 3/3</div>
+        <button class="mbtn shoot wide" id="openCam">НАЧАТЬ ЛОВИТЬ</button>
+      </div>
+    </div>
 
-  <div id="emptyState" class="empty">
-    <div class="glyph">◌</div>
-    <p>Нефорбол пуст.<br><span class="accent">Пора выходить на охоту.</span></p>
-  </div>
-
-  <div class="grid" id="grid"></div>
-
-  <p class="note" id="disclaimer">вырезание фона — настоящая модель (MediaPipe Selfie Segmentation, бесплатная, работает прямо в браузере), определяет силуэт человека попиксельно. характеристики нефора пока генерируются случайно при поимке.</p>
-
-  <button class="demo-fill" id="demoFill">+ демо-нефоры (для кадра галереи)</button>
-
-  <div class="ticker" id="openCam">
-    <span class="txt outline">ЗАБРАТЬ НЕФОРА</span>
-    <div class="go-btn">
-      <svg viewBox="0 0 24 24" fill="none"><path d="M5 12h14M13 6l6 6-6 6" stroke="#0a1a0a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <div class="panel" style="margin-top:14px;">
+      <div class="district">Магазин</div>
+      <div id="shopRows"></div>
     </div>
   </div>
 
-  <!-- modal -->
+  <!-- камера (переиспользуется и для создания персонажа, и для ловли) -->
   <div class="modal" id="modal">
     <div class="viewfinder" id="viewfinder">
       <video id="video" autoplay playsinline muted></video>
@@ -528,34 +345,15 @@
     </div>
     <div class="modal-controls">
       <button class="mbtn" id="cancelBtn">Отмена</button>
-      <button class="mbtn shoot" id="shootBtn">Поймать</button>
+      <button class="mbtn shoot" id="shootBtn">Снять</button>
     </div>
-    <p class="hint" id="camHint">Наведи камеру на нефора и держи ровно.</p>
-    <input type="file" accept="image/*" capture="environment" class="fallback-input" id="fallbackInput">
-  </div>
-
-  <!-- detail modal -->
-  <div class="modal" id="detailModal">
-    <div class="detail-panel">
-      <button class="detail-close" id="detailClose">✕</button>
-      <div class="detail-thumb">
-        <img id="detailImg" src="" alt="">
-        <div class="idtag" id="detailTag">#000</div>
-      </div>
-      <div class="detail-name outline" id="detailName">—</div>
-      <div id="detailBars"></div>
-    </div>
+    <p class="hint" id="camHint">Наведи камеру и держи ровно.</p>
+    <input type="file" accept="image/*" class="fallback-input" id="fallbackInput">
   </div>
 
 </div>
 
 <script>
-const NAMES = [
-  "Панк с района","Готка у ТЦ","Эмо на лавке","Кибер-гопник","Метал-олдскул",
-  "Скейт-панк","Альт-герл","Растаман с драбадана","Хиппи из перехода","Дарк-академик",
-  "Гранж-подросток","Индастриал-фрик","Стрит-панк","Неформал 2007 vintage","Готик-лолита"
-];
-
 // Telegram Mini App integration — runs harmlessly outside Telegram too
 const tg = window.Telegram && window.Telegram.WebApp;
 if(tg){
@@ -566,7 +364,38 @@ if(tg){
   if(tg.setHeaderColor) { try{ tg.setHeaderColor('#37497c'); }catch(e){} }
 }
 
-let collection = [];
+// ---- Supabase config (публичные ключи, безопасно светить на клиенте) ----
+const SUPABASE_URL = 'https://cjisrumpcjeyzteaaueh.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_OSZ17Yj0e27sLRMBKCAnOQ_8lMUHZFG';
+const SPRITE_PROXY_URL = SUPABASE_URL + '/functions/v1/sprite-proxy';
+const SPRITE_MODEL = 'openai/gpt-image-2';
+const SPRITE_PROMPT = "16-bit SNES-style pixel art sprite of this person, front-facing, waist-up, single character centered, flat solid magenta (#ff00ff) background, no text, no watermark, retro video game character portrait style";
+const DAILY_CATCH_LIMIT = 3;
+const STAT_FLOOR = 5;
+
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+function getUserId(){
+  if(tg && tg.initDataUnsafe && tg.initDataUnsafe.user && tg.initDataUnsafe.user.id){
+    return String(tg.initDataUnsafe.user.id);
+  }
+  let id = localStorage.getItem('neforball_uid');
+  if(!id){
+    id = 'test-' + Math.random().toString(36).slice(2, 10);
+    localStorage.setItem('neforball_uid', id);
+  }
+  return id;
+}
+const USER_ID = getUserId();
+
+const STATS = [
+  {key:'life', label:'жизнь', color:'var(--life)'},
+  {key:'dmg', label:'урон', color:'var(--dmg)'},
+  {key:'depr', label:'устойчивость к депрессии', color:'var(--depr)'},
+];
+
+let player = null;
+let captureMode = 'catch'; // 'catch' | 'character'
 let stream = null;
 let segmenter = null;
 let segmenterReady = null;
@@ -617,178 +446,6 @@ function simpleCrop(source){
   return canvas.toDataURL('image/png');
 }
 
-const grid = document.getElementById('grid');
-const emptyState = document.getElementById('emptyState');
-const bigCount = document.getElementById('bigCount');
-const conditionLine = document.getElementById('conditionLine');
-const lastLine = document.getElementById('lastLine');
-const countStat = document.getElementById('countStat');
-const avgStat = document.getElementById('avgStat');
-const rareStat = document.getElementById('rareStat');
-const statusStat = document.getElementById('statusStat');
-const modal = document.getElementById('modal');
-const video = document.getElementById('video');
-const canvas = document.getElementById('canvas');
-const processing = document.getElementById('processing');
-const camHint = document.getElementById('camHint');
-const fallbackInput = document.getElementById('fallbackInput');
-
-document.getElementById('openCam').addEventListener('click', openCamera);
-document.getElementById('cancelBtn').addEventListener('click', closeModal);
-document.getElementById('shootBtn').addEventListener('click', shoot);
-fallbackInput.addEventListener('change', handleFallback);
-document.getElementById('demoFill').addEventListener('click', () => addDemoBatch(6));
-
-const detailModal = document.getElementById('detailModal');
-document.getElementById('detailClose').addEventListener('click', () => detailModal.classList.remove('open'));
-detailModal.addEventListener('click', (e) => { if(e.target === detailModal) detailModal.classList.remove('open'); });
-grid.addEventListener('click', (e) => {
-  const card = e.target.closest('.card');
-  if(!card) return;
-  openDetail(Number(card.dataset.id));
-});
-
-function openDetail(id){
-  const n = collection.find(x => x.id === id);
-  if(!n) return;
-  document.getElementById('detailImg').src = n.img;
-  document.getElementById('detailTag').textContent = '#' + String(n.id).padStart(3,'0');
-  document.getElementById('detailName').textContent = n.name;
-  document.getElementById('detailBars').innerHTML =
-    bar('жизнь', n.life, 'var(--life)') +
-    bar('урон', n.dmg, 'var(--dmg)') +
-    bar('устойчивость к депрессии', n.depr, 'var(--depr)');
-  detailModal.classList.add('open');
-}
-
-// warm up the model as soon as the page loads, so the first real shot isn't slow
-initSegmenter().catch(()=>{});
-
-function placeholderImg(seed){
-  const colors = ['#ff5a5a','#ffa73d','#7fd1ff','#c9ff5e','#ff8ad1','#8f7bff','#ffd15c','#5ce0c0'];
-  const c = colors[seed % colors.length];
-  const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'>
-    <circle cx='100' cy='76' r='40' fill='${c}'/>
-    <path d='M38,198 Q38,118 100,118 Q162,118 162,198 Z' fill='${c}'/>
-  </svg>`;
-  return 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
-}
-
-function addDemoBatch(n){
-  for(let i=0;i<n;i++){
-    collection.unshift({
-      id: collection.length + 1,
-      name: NAMES[Math.floor(Math.random()*NAMES.length)],
-      img: placeholderImg(collection.length + i),
-      life: 1 + Math.floor(Math.random()*10),
-      dmg: 1 + Math.floor(Math.random()*10),
-      depr: 1 + Math.floor(Math.random()*10),
-    });
-  }
-  render();
-}
-
-// retro clock
-const DAYS = ['ВС','ПН','ВТ','СР','ЧТ','ПТ','СБ'];
-const MONTHS = ['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
-function tickClock(){
-  const d = new Date();
-  const hh = String(d.getHours()).padStart(2,'0');
-  const mm = String(d.getMinutes()).padStart(2,'0');
-  const ss = String(d.getSeconds()).padStart(2,'0');
-  document.getElementById('clockTime').textContent = `${hh}:${mm}:${ss}`;
-  document.getElementById('clockDate').textContent = `${DAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]}`;
-}
-tickClock();
-setInterval(tickClock, 1000);
-
-async function openCamera(){
-  modal.classList.add('open');
-  video.style.display = 'block';
-  canvas.style.display = 'none';
-  try{
-    stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}, audio:false});
-    video.srcObject = stream;
-  }catch(err){
-    camHint.innerHTML = 'Камера недоступна в этом окне предпросмотра. Можно выбрать фото вручную —';
-    const link = document.createElement('button');
-    link.textContent = 'выбрать фото';
-    link.className = 'mbtn';
-    link.style.marginTop = '8px';
-    link.onclick = () => fallbackInput.click();
-    camHint.appendChild(document.createElement('br'));
-    camHint.appendChild(link);
-  }
-}
-
-function closeModal(){
-  modal.classList.remove('open');
-  if(stream){
-    stream.getTracks().forEach(t => t.stop());
-    stream = null;
-  }
-  processing.classList.remove('on');
-}
-
-function handleFallback(e){
-  const file = e.target.files[0];
-  if(!file) return;
-  const img = new Image();
-  img.onload = async () => {
-    processing.classList.add('on');
-    await initSegmenter().catch(()=>{});
-    let dataUrl;
-    try{
-      dataUrl = await withTimeout(stylize(img), 8000);
-    }catch(err){
-      dataUrl = simpleCrop(img);
-    }
-    processing.classList.remove('on');
-    await playCatchAnimation(dataUrl);
-    finishCapture(dataUrl);
-  };
-  img.src = URL.createObjectURL(file);
-}
-
-async function shoot(){
-  if(!stream) return;
-  processing.classList.add('on');
-  await initSegmenter().catch(()=>{});
-  let dataUrl;
-  try{
-    dataUrl = await withTimeout(stylize(video), 8000);
-  }catch(err){
-    dataUrl = simpleCrop(video);
-  }
-  processing.classList.remove('on');
-  await playCatchAnimation(dataUrl);
-  finishCapture(dataUrl);
-}
-
-function playCatchAnimation(dataUrl){
-  return new Promise((resolve) => {
-    const overlay = document.getElementById('catchOverlay');
-    const img = document.getElementById('catchImg');
-    const label = document.getElementById('catchLabel');
-    img.src = dataUrl;
-    img.className = '';
-    label.className = '';
-    overlay.classList.add('on');
-    requestAnimationFrame(() => {
-      img.className = 'pop';
-      setTimeout(() => { label.className = 'show'; }, 200);
-      setTimeout(() => {
-        overlay.classList.add('flash');
-        img.className = 'suck';
-      }, 620);
-      setTimeout(() => {
-        overlay.classList.remove('on','flash');
-        resolve();
-      }, 1150);
-    });
-  });
-}
-
 async function stylize(source){
   const sw = source.videoWidth || source.width;
   const sh = source.videoHeight || source.height;
@@ -815,73 +472,400 @@ async function stylize(source){
   return canvas.toDataURL('image/png');
 }
 
-function finishCapture(dataUrl){
-  const nefor = {
-    id: collection.length + 1,
-    name: NAMES[Math.floor(Math.random()*NAMES.length)],
-    img: dataUrl,
-    life: 1 + Math.floor(Math.random()*10),
-    dmg: 1 + Math.floor(Math.random()*10),
-    depr: 1 + Math.floor(Math.random()*10),
-  };
-  collection.unshift(nefor);
-  render();
-  closeModal();
+function cutMagenta(imgSrc){
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      const c = document.createElement('canvas');
+      c.width = img.width; c.height = img.height;
+      const ctx = c.getContext('2d');
+      ctx.drawImage(img, 0, 0);
+      const data = ctx.getImageData(0, 0, c.width, c.height);
+      const px = data.data;
+      for(let i=0; i<px.length; i+=4){
+        const r = px[i], g = px[i+1], b = px[i+2];
+        if(r > 180 && g < 90 && b > 180){ px[i+3] = 0; }
+      }
+      ctx.putImageData(data, 0, 0);
+      resolve(c.toDataURL('image/png'));
+    };
+    img.src = imgSrc;
+  });
 }
 
-function conditionFor(n){
-  if(n === 0) return 'Пока тихо';
-  if(n < 3) return 'Есть движение';
-  if(n < 7) return 'Активно';
-  return 'Аномальная активность';
+async function generateSprite(rawDataUrl){
+  const res = await fetch(SPRITE_PROXY_URL, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+      'apikey': SUPABASE_ANON_KEY,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ prompt: SPRITE_PROMPT, imageDataUrl: rawDataUrl, model: SPRITE_MODEL })
+  });
+  const raw = await res.text();
+  if(!res.ok) throw new Error(raw);
+  let data;
+  try{ data = JSON.parse(raw); } catch(e){ throw new Error('Не удалось разобрать ответ сервера'); }
+  const b64 =
+    data?.data?.[0]?.b64_json ||
+    data?.images?.[0]?.b64_json ||
+    data?.images?.[0]?.image_url?.url ||
+    data?.output?.[0]?.b64_json ||
+    null;
+  if(!b64) throw new Error('Не нашли картинку в ответе сервера');
+  const imgSrc = b64.startsWith('data:') ? b64 : `data:image/png;base64,${b64}`;
+  return await cutMagenta(imgSrc);
 }
 
-function render(){
-  emptyState.style.display = collection.length ? 'none' : 'block';
-  grid.innerHTML = collection.map(n => `
-    <div class="card" data-id="${n.id}">
-      <div class="thumb">
-        <img src="${n.img}" alt="${n.name}">
-        <div class="idtag">#${String(n.id).padStart(3,'0')}</div>
-      </div>
-      <div class="body">
-        <div class="name">${n.name}</div>
-        ${bar('жизнь', n.life, 'var(--life)')}
-        ${bar('урон', n.dmg, 'var(--dmg)')}
-        ${bar('депресс.', n.depr, 'var(--depr)')}
-      </div>
-    </div>
-  `).join('');
+// ---- игрок: загрузка, декей, дневной сброс ----
 
-  const total = collection.length;
-  bigCount.textContent = total;
-  conditionLine.textContent = conditionFor(total);
-  lastLine.textContent = total ? `Последний улов: ${collection[0].name}` : 'Последний улов: —';
-  countStat.textContent = total;
+function todayStr(){ return new Date().toISOString().slice(0, 10); }
 
-  if(total){
-    const avg = (collection.reduce((s,n)=>s+n.depr,0)/total).toFixed(1);
-    avgStat.textContent = avg + '/10';
-    const top = [...collection].sort((a,b)=>(b.life+b.dmg+b.depr)-(a.life+a.dmg+a.depr))[0];
-    rareStat.textContent = top.name.split(' ')[0];
-    statusStat.textContent = total >= 12 ? 'Почти полон' : 'Есть место';
-  } else {
-    avgStat.textContent = '—';
-    rareStat.textContent = '—';
-    statusStat.textContent = 'Есть место';
+function daysBetween(a, b){ return Math.round((new Date(b) - new Date(a)) / 86400000); }
+
+function applyRollover(p){
+  const today = todayStr();
+  const gap = daysBetween(p.last_active_date, today);
+  if(gap >= 1){
+    p.catches_today = 0;
   }
+  if(gap > 2){
+    const decay = gap - 2; // 1 день пропуска прощаем, дальше -1/-1/-1 за каждый следующий
+    p.life = Math.max(STAT_FLOOR, p.life - decay);
+    p.dmg = Math.max(STAT_FLOOR, p.dmg - decay);
+    p.depr = Math.max(STAT_FLOOR, p.depr - decay);
+  }
+  p.last_active_date = today;
+  return p;
 }
 
-function bar(label, value, color){
+async function loadPlayer(){
+  const { data, error } = await sb.from('players').select('*').eq('telegram_user_id', USER_ID).maybeSingle();
+  if(error){ console.error(error); return null; }
+  return data;
+}
+
+async function ensurePlayer(){
+  let p = await loadPlayer();
+  if(!p) return null;
+  p = applyRollover(p);
+  await sb.from('players').update({
+    catches_today: p.catches_today,
+    life: p.life, dmg: p.dmg, depr: p.depr,
+    last_active_date: p.last_active_date
+  }).eq('telegram_user_id', USER_ID);
+  return p;
+}
+
+async function createPlayerRecord(spriteDataUrl){
+  const path = `${USER_ID}/character.png`;
+  const blob = await (await fetch(spriteDataUrl)).blob();
+  await sb.storage.from('nefory-photos').upload(path, blob, { upsert: true, contentType: 'image/png' });
+  const { data: pub } = sb.storage.from('nefory-photos').getPublicUrl(path);
+  const name = (tg && tg.initDataUnsafe && tg.initDataUnsafe.user && tg.initDataUnsafe.user.first_name) || 'Неформал';
+
+  const row = {
+    telegram_user_id: USER_ID,
+    name,
+    sprite_url: pub.publicUrl,
+    life: 5, life_cap: 10,
+    dmg: 5, dmg_cap: 10,
+    depr: 5, depr_cap: 10,
+    jetons: 0,
+    catches_today: 0,
+    last_active_date: todayStr()
+  };
+  await sb.from('players').insert(row);
+  player = row;
+}
+
+// ---- экономика: стоимость апгрейдов ----
+
+function statUpCost(value){ return value + 1; }
+function capUpCost(cap){ return cap * 3; }
+
+// ---- рендер ----
+
+function bar(label, value, cap, color){
   return `
     <div class="barrow">
-      <div class="top"><span>${label}</span><span>${value}/10</span></div>
-      <div class="track"><div class="fill" style="width:${value*10}%;background:${color}"></div></div>
+      <div class="top"><span>${label}</span><span>${value}/${cap}</span></div>
+      <div class="track"><div class="fill" style="width:${(value/cap*100)}%;background:${color}"></div></div>
     </div>
   `;
 }
 
-render();
+function renderPlayer(){
+  document.getElementById('charSprite').src = player.sprite_url;
+  document.getElementById('charName').textContent = player.name;
+  document.getElementById('charStatsBars').innerHTML = STATS.map(s =>
+    bar(s.label, player[s.key], player[s.key + '_cap'], s.color)
+  ).join('');
+  document.getElementById('jetonsLine').textContent = `💰 ${player.jetons} жетонов`;
+
+  const left = Math.max(0, DAILY_CATCH_LIMIT - player.catches_today);
+  document.getElementById('attemptsLine').textContent = left > 0
+    ? `Осталось попыток сегодня: ${left}/${DAILY_CATCH_LIMIT}`
+    : 'Попытки на сегодня закончились — приходи завтра';
+  document.getElementById('openCam').disabled = left <= 0;
+
+  renderShop();
+}
+
+function renderShop(){
+  const el = document.getElementById('shopRows');
+  el.innerHTML = STATS.map(s => {
+    const val = player[s.key];
+    const cap = player[s.key + '_cap'];
+    const upCost = statUpCost(val);
+    const capCost = capUpCost(cap);
+    const canUp = val < cap && player.jetons >= upCost;
+    const canCap = player.jetons >= capCost;
+    return `
+      <div class="shop-row">
+        <div class="shop-label">${s.label} <span class="v">${val}/${cap}</span></div>
+        <div class="shop-btns">
+          <button class="shop-btn" data-action="up" data-stat="${s.key}" ${canUp ? '' : 'disabled'}>+1 (${upCost}💰)</button>
+          <button class="shop-btn" data-action="cap" data-stat="${s.key}" ${canCap ? '' : 'disabled'}>потолок +1 (${capCost}💰)</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+document.getElementById('shopRows').addEventListener('click', async (e) => {
+  const btn = e.target.closest('.shop-btn');
+  if(!btn || btn.disabled) return;
+  const stat = btn.dataset.stat;
+  const action = btn.dataset.action;
+
+  if(action === 'up'){
+    const cost = statUpCost(player[stat]);
+    if(player.jetons < cost || player[stat] >= player[stat + '_cap']) return;
+    player.jetons -= cost;
+    player[stat] += 1;
+  } else {
+    const cost = capUpCost(player[stat + '_cap']);
+    if(player.jetons < cost) return;
+    player.jetons -= cost;
+    player[stat + '_cap'] += 1;
+  }
+
+  await sb.from('players').update({
+    jetons: player.jetons,
+    [stat]: player[stat],
+    [stat + '_cap']: player[stat + '_cap']
+  }).eq('telegram_user_id', USER_ID);
+
+  renderPlayer();
+});
+
+function showOnboarding(){
+  document.getElementById('onboardingPanel').style.display = 'block';
+  document.getElementById('gameRoot').style.display = 'none';
+}
+function showGame(){
+  document.getElementById('onboardingPanel').style.display = 'none';
+  document.getElementById('gameRoot').style.display = 'block';
+}
+
+// ---- камера ----
+
+const modal = document.getElementById('modal');
+const video = document.getElementById('video');
+const canvas = document.getElementById('canvas');
+const processing = document.getElementById('processing');
+const procLabel = document.getElementById('procLabel');
+const camHint = document.getElementById('camHint');
+const fallbackInput = document.getElementById('fallbackInput');
+
+document.getElementById('createCharBtn').addEventListener('click', () => {
+  captureMode = 'character';
+  openCamera();
+});
+document.getElementById('openCam').addEventListener('click', () => {
+  if(player.catches_today >= DAILY_CATCH_LIMIT){
+    alert('Попытки на сегодня закончились. Возвращайся завтра!');
+    return;
+  }
+  captureMode = 'catch';
+  openCamera();
+});
+document.getElementById('cancelBtn').addEventListener('click', closeModal);
+document.getElementById('shootBtn').addEventListener('click', shoot);
+fallbackInput.addEventListener('change', handleFallback);
+
+// прогреваем модель сегментации заранее, чтобы первая поимка не тормозила
+initSegmenter().catch(()=>{});
+
+async function openCamera(){
+  modal.classList.add('open');
+  video.style.display = 'block';
+  canvas.style.display = 'none';
+  camHint.innerHTML = captureMode === 'character'
+    ? 'Сделай селфи анфас — из него получится твой персонаж.'
+    : 'Наведи камеру на нефора и держи ровно.';
+  fallbackInput.setAttribute('capture', captureMode === 'character' ? 'user' : 'environment');
+  const facingMode = captureMode === 'character' ? 'user' : 'environment';
+  try{
+    stream = await navigator.mediaDevices.getUserMedia({video:{facingMode}, audio:false});
+    video.srcObject = stream;
+  }catch(err){
+    camHint.innerHTML = 'Камера недоступна в этом окне предпросмотра. Можно выбрать фото вручную —';
+    const link = document.createElement('button');
+    link.textContent = 'выбрать фото';
+    link.className = 'mbtn';
+    link.style.marginTop = '8px';
+    link.onclick = () => fallbackInput.click();
+    camHint.appendChild(document.createElement('br'));
+    camHint.appendChild(link);
+  }
+}
+
+function closeModal(){
+  modal.classList.remove('open');
+  if(stream){
+    stream.getTracks().forEach(t => t.stop());
+    stream = null;
+  }
+  processing.classList.remove('on');
+}
+
+function playCatchAnimation(dataUrl, labelText){
+  return new Promise((resolve) => {
+    const overlay = document.getElementById('catchOverlay');
+    const img = document.getElementById('catchImg');
+    const label = document.getElementById('catchLabel');
+    img.src = dataUrl;
+    img.className = '';
+    label.className = '';
+    label.textContent = labelText || 'ПОЙМАН!';
+    overlay.classList.add('on');
+    requestAnimationFrame(() => {
+      img.className = 'pop';
+      setTimeout(() => { label.className = 'show'; }, 200);
+      setTimeout(() => {
+        overlay.classList.add('flash');
+        img.className = 'suck';
+      }, 620);
+      setTimeout(() => {
+        overlay.classList.remove('on','flash');
+        resolve();
+      }, 1150);
+    });
+  });
+}
+
+async function shoot(){
+  if(!stream) return;
+  if(captureMode === 'character'){
+    await handleCharacterCapture(video);
+  } else {
+    await handleCatchCapture(video);
+  }
+}
+
+function handleFallback(e){
+  const file = e.target.files[0];
+  if(!file) return;
+  const img = new Image();
+  img.onload = async () => {
+    if(captureMode === 'character'){
+      await handleCharacterCapture(img);
+    } else {
+      await handleCatchCapture(img);
+    }
+  };
+  img.src = URL.createObjectURL(file);
+}
+
+async function handleCharacterCapture(source){
+  processing.classList.add('on');
+  procLabel.textContent = 'РИСУЕМ СПРАЙТ…';
+  const rawDataUrl = simpleCrop(source);
+  try{
+    const spriteDataUrl = await generateSprite(rawDataUrl);
+    processing.classList.remove('on');
+    await playCatchAnimation(spriteDataUrl, 'ГОТОВО!');
+    await createPlayerRecord(spriteDataUrl);
+    closeModal();
+    showGame();
+    renderPlayer();
+  }catch(err){
+    processing.classList.remove('on');
+    alert('Не получилось сгенерировать спрайт: ' + err.message + '\nПопробуй ещё раз.');
+  }
+}
+
+async function handleCatchCapture(source){
+  if(player.catches_today >= DAILY_CATCH_LIMIT){
+    alert('Попытки на сегодня закончились. Возвращайся завтра!');
+    closeModal();
+    return;
+  }
+  processing.classList.add('on');
+  procLabel.textContent = 'ЗАХВАТ СИЛУЭТА…';
+  await initSegmenter().catch(()=>{});
+  let dataUrl;
+  try{
+    dataUrl = await withTimeout(stylize(source), 8000);
+  }catch(err){
+    dataUrl = simpleCrop(source);
+  }
+  processing.classList.remove('on');
+  await playCatchAnimation(dataUrl, 'ПОЙМАН!');
+  await applyCatchReward();
+  closeModal();
+}
+
+async function applyCatchReward(){
+  player.catches_today += 1;
+  player.jetons += 1;
+
+  // ~15% шанс на критическую поимку — мгновенный +1 к случайной шкале сверху жетона
+  if(Math.random() < 0.15){
+    const stat = STATS[Math.floor(Math.random() * STATS.length)].key;
+    if(player[stat] < player[stat + '_cap']){
+      player[stat] += 1;
+    }
+  }
+
+  await sb.from('players').update({
+    catches_today: player.catches_today,
+    jetons: player.jetons,
+    life: player.life, dmg: player.dmg, depr: player.depr,
+    last_active_date: todayStr()
+  }).eq('telegram_user_id', USER_ID);
+
+  renderPlayer();
+}
+
+// retro clock
+const DAYS = ['ВС','ПН','ВТ','СР','ЧТ','ПТ','СБ'];
+const MONTHS = ['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
+function tickClock(){
+  const d = new Date();
+  const hh = String(d.getHours()).padStart(2,'0');
+  const mm = String(d.getMinutes()).padStart(2,'0');
+  const ss = String(d.getSeconds()).padStart(2,'0');
+  document.getElementById('clockTime').textContent = `${hh}:${mm}:${ss}`;
+  document.getElementById('clockDate').textContent = `${DAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]}`;
+}
+tickClock();
+setInterval(tickClock, 1000);
+
+// ---- старт ----
+(async () => {
+  player = await ensurePlayer();
+  if(player){
+    showGame();
+    renderPlayer();
+  } else {
+    showOnboarding();
+  }
+})();
 </script>
 </body>
 </html>
