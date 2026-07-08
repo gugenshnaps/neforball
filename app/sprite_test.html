@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Лаборатория нефор-аватара</title>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/selfie_segmentation.js"></script>
 <style>
   :root{ --bg:#12100c; --panel:#1c1912; --line:#3a332a; --bone:#f2ecdd; --dim:#a89a80; --acc:#3fe83f; }
   *{box-sizing:border-box;}
@@ -38,6 +39,8 @@
   .warn{color:#ffb15c; font-size:12px; margin-top:10px; line-height:1.5;}
   details{margin-top:14px; font-size:12px; color:var(--dim);}
   summary{cursor:pointer;}
+  .free-box{margin-top:20px; padding:14px; border:1px dashed #6a5acd; border-radius:10px;}
+  .free-title{font-size:13px; color:#b3a7f0; font-weight:700; margin-bottom:6px;}
 </style>
 </head>
 <body>
@@ -73,7 +76,23 @@
   <label>Фото (селфи или в полный рост)</label>
   <input type="file" accept="image/*" id="fileInput">
 
-  <button id="genBtn" disabled>Сгенерировать аватар</button>
+  <button id="genBtn" disabled>Сгенерировать аватар (AI, платно)</button>
+
+  <div class="free-box">
+    <div class="free-title">🆓 Или бесплатно, без нейросети</div>
+    <p class="sub" style="margin:0 0 8px;">Вырезаем человека (MediaPipe) и пикселизируем прямо в браузере. Мгновенно и бесплатно, но это огрублённое фото, а не перерисованный персонаж.</p>
+    <div class="two-col">
+      <div>
+        <label>Крупность пикселей (блоков по ширине)</label>
+        <input type="number" id="blocks" value="80" min="16" max="200" step="4">
+      </div>
+      <div>
+        <label>Оттенков на канал (палитра)</label>
+        <input type="number" id="levels" value="5" min="2" max="16" step="1">
+      </div>
+    </div>
+    <button id="freeBtn" disabled style="background:#6a5acd; color:#fff;">Сделать бесплатно (пикселизация)</button>
+  </div>
 
   <div class="preview-row">
     <div class="box">
@@ -82,7 +101,7 @@
     </div>
     <div class="box">
       <div class="sprite-wrap"><img id="spriteImg" src="" style="display:none;"></div>
-      <div class="lbl">аватар (magenta вырезан)</div>
+      <div class="lbl">результат</div>
     </div>
   </div>
 
@@ -100,6 +119,7 @@
 const SUPABASE_URL = 'https://cjisrumpcjeyzteaaueh.supabase.co';
 const fileInput = document.getElementById('fileInput');
 const genBtn = document.getElementById('genBtn');
+const freeBtn = document.getElementById('freeBtn');
 const srcImg = document.getElementById('srcImg');
 const spriteImg = document.getElementById('spriteImg');
 const logEl = document.getElementById('log');
@@ -117,6 +137,7 @@ fileInput.addEventListener('change', (e) => {
   reader.onload = () => {
     rawFileDataUrl = reader.result;
     genBtn.disabled = false;
+    freeBtn.disabled = false;
     log(`выбрано фото: ${(file.size/1024).toFixed(0)} КБ, тип ${file.type || 'неизвестно'}`);
   };
   reader.readAsDataURL(file);
@@ -239,6 +260,113 @@ function processSprite(imgSrc){
     };
     img.src = imgSrc;
   });
+}
+
+// ===== БЕСПЛАТНЫЙ РЕЖИМ: вырезание MediaPipe + пикселизация, без AI =====
+
+let segmenter = null;
+let segReady = null;
+let pendingSeg = null;
+
+function initSegmenter(){
+  if(segReady) return segReady;
+  segReady = new Promise((resolve) => {
+    segmenter = new SelfieSegmentation({
+      locateFile: (f) => `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${f}`
+    });
+    segmenter.setOptions({ modelSelection: 1 });
+    segmenter.onResults((res) => { if(pendingSeg){ pendingSeg(res); pendingSeg = null; } });
+    resolve(true);
+  });
+  return segReady;
+}
+function runSegmentation(image){
+  return new Promise(async (resolve) => { pendingSeg = resolve; await segmenter.send({image}); });
+}
+function loadImage(src){
+  return new Promise((resolve) => { const i = new Image(); i.onload = () => resolve(i); i.src = src; });
+}
+
+freeBtn.addEventListener('click', async () => {
+  if(!rawFileDataUrl){ log('❌ Выбери фото.'); return; }
+  const blocks = parseInt(document.getElementById('blocks').value, 10) || 80;
+  const levels = parseInt(document.getElementById('levels').value, 10) || 5;
+  freeBtn.disabled = true;
+  freeBtn.textContent = 'Обрабатываю…';
+  logEl.textContent = '→ вырезаю человека (MediaPipe)…';
+  const t0 = Date.now();
+  try{
+    await initSegmenter();
+    const img = await loadImage(rawFileDataUrl);
+    // ограничим рабочий размер, чтобы сегментация не тормозила
+    const maxSide = 700;
+    const scale = Math.min(1, maxSide / Math.max(img.naturalWidth, img.naturalHeight));
+    const w = Math.round(img.naturalWidth * scale);
+    const h = Math.round(img.naturalHeight * scale);
+
+    srcImg.src = rawFileDataUrl;
+
+    const base = document.createElement('canvas');
+    base.width = w; base.height = h;
+    base.getContext('2d').drawImage(img, 0, 0, w, h);
+
+    const seg = await runSegmentation(base);
+
+    // вырезаем человека по маске
+    const cut = document.createElement('canvas');
+    cut.width = w; cut.height = h;
+    const cx = cut.getContext('2d');
+    cx.drawImage(seg.image, 0, 0, w, h);
+    cx.globalCompositeOperation = 'destination-in';
+    cx.drawImage(seg.segmentationMask, 0, 0, w, h);
+    cx.globalCompositeOperation = 'source-over';
+
+    log('→ пикселизирую и ужимаю палитру…');
+    const result = pixelate(cut, blocks, levels);
+    spriteImg.src = result;
+    spriteImg.style.display = 'block';
+    log(`✅ Готово за ${((Date.now()-t0)/1000).toFixed(1)} сек. Бесплатно, $0.`);
+  }catch(err){
+    log('❌ Ошибка бесплатного режима:');
+    log(String(err));
+  }finally{
+    freeBtn.disabled = false;
+    freeBtn.textContent = 'Сделать бесплатно (пикселизация)';
+  }
+});
+
+// пикселизация: ужимаем в маленький размер (blocks по ширине), огрубляем цвета
+// до `levels` уровней на канал (ретро-палитра), увеличиваем обратно без сглаживания
+function pixelate(sourceCanvas, blocks, levels){
+  const w = sourceCanvas.width, h = sourceCanvas.height;
+  const smallW = Math.max(1, blocks);
+  const smallH = Math.max(1, Math.round(blocks * h / w));
+
+  const small = document.createElement('canvas');
+  small.width = smallW; small.height = smallH;
+  const sctx = small.getContext('2d');
+  sctx.drawImage(sourceCanvas, 0, 0, smallW, smallH);
+
+  // огрубляем цвета (posterize) — сохраняя прозрачность
+  const idata = sctx.getImageData(0, 0, smallW, smallH);
+  const px = idata.data;
+  const step = 255 / (levels - 1);
+  for(let i=0; i<px.length; i+=4){
+    if(px[i+3] < 128){ px[i+3] = 0; continue; } // полупрозрачные края маски убираем
+    px[i]   = Math.round(Math.round(px[i]   / step) * step);
+    px[i+1] = Math.round(Math.round(px[i+1] / step) * step);
+    px[i+2] = Math.round(Math.round(px[i+2] / step) * step);
+    px[i+3] = 255;
+  }
+  sctx.putImageData(idata, 0, 0);
+
+  // увеличиваем обратно без сглаживания — получаем чёткие квадраты
+  const out = document.createElement('canvas');
+  out.width = w; out.height = h;
+  const octx = out.getContext('2d');
+  octx.imageSmoothingEnabled = false;
+  octx.drawImage(small, 0, 0, w, h);
+  return out.toDataURL('image/png');
 }
 </script>
 </body>
