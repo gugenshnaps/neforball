@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Проба сенсоров (псевдо-AR)</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0; height:100%; overflow:hidden; font-family:'Space Mono',monospace; background:#000; color:#fff;}
+  #cam{position:fixed; inset:0; width:100%; height:100%; object-fit:cover; z-index:0; background:#111;}
+  #world{position:fixed; inset:0; z-index:1; overflow:hidden;}
+
+  /* монстр + фейковая тень */
+  #mon{position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); text-align:center; transition:none; will-change:left,top;}
+  #mon .body{font-size:96px; line-height:1; filter:drop-shadow(0 6px 10px rgba(0,0,0,0.6)); animation:bob 1.6s ease-in-out infinite;}
+  #mon .shadow{width:90px; height:22px; margin:-6px auto 0; border-radius:50%;
+    background:radial-gradient(ellipse at center, rgba(0,0,0,0.55), rgba(0,0,0,0) 70%); animation:shsc 1.6s ease-in-out infinite;}
+  @keyframes bob{0%,100%{transform:translateY(0);}50%{transform:translateY(-10px);}}
+  @keyframes shsc{0%,100%{transform:scaleX(1); opacity:0.55;}50%{transform:scaleX(0.8); opacity:0.4;}}
+  #mon.hidden{display:none;}
+
+  /* радар-стрелка когда монстр вне кадра */
+  #arrow{position:fixed; top:50%; z-index:2; font-size:40px; color:#3fe83f; display:none;
+    text-shadow:0 0 8px rgba(0,0,0,0.8); animation:pulse 1s ease-in-out infinite;}
+  @keyframes pulse{0%,100%{opacity:0.5;}50%{opacity:1;}}
+
+  /* диагностика */
+  #diag{position:fixed; top:0; left:0; right:0; z-index:5; padding:12px 14px calc(12px + env(safe-area-inset-top));
+    background:rgba(0,0,0,0.55); font-size:12px; line-height:1.7; backdrop-filter:blur(2px);}
+  #diag .k{color:#8fdc8f;}
+  #status{font-weight:700; font-size:13px; margin-bottom:4px;}
+  .ok{color:#3fe83f;} .bad{color:#ff6b6b;} .wait{color:#f5e35c;}
+
+  #controls{position:fixed; bottom:0; left:0; right:0; z-index:5;
+    padding:14px 14px calc(14px + env(safe-area-inset-bottom)); display:flex; flex-direction:column; gap:8px;}
+  button{padding:14px; border:none; border-radius:10px; font-family:inherit; font-weight:700; font-size:14px; cursor:pointer;}
+  .primary{background:#3fe83f; color:#0a1a0a;}
+  .ghost{background:rgba(255,255,255,0.15); color:#fff; border:1px solid rgba(255,255,255,0.3);}
+  .row{display:flex; gap:8px;} .row button{flex:1;}
+</style>
+</head>
+<body>
+  <video id="cam" autoplay playsinline muted></video>
+  <div id="world">
+    <div id="mon" class="hidden">
+      <div class="body">👾</div>
+      <div class="shadow"></div>
+    </div>
+  </div>
+  <div id="arrow">➤</div>
+
+  <div id="diag">
+    <div id="status" class="wait">Нажми «Старт» и разреши доступ к датчикам</div>
+    <div><span class="k">событий сенсора:</span> <span id="cnt">0</span></div>
+    <div><span class="k">компас (heading):</span> <span id="head">—</span>°</div>
+    <div><span class="k">наклон β / γ:</span> <span id="bg">—</span></div>
+    <div><span class="k">монстр азимут:</span> <span id="mb">—</span>° · <span class="k">Δ:</span> <span id="delta">—</span>°</div>
+  </div>
+
+  <div id="controls">
+    <button class="primary" id="startBtn">▶ Старт (разрешить датчики + камеру)</button>
+    <div class="row">
+      <button class="ghost" id="placeFront">Монстр передо мной</button>
+      <button class="ghost" id="placeLeft">← слева</button>
+      <button class="ghost" id="placeRight">справа →</button>
+    </div>
+  </div>
+
+<script>
+const tg = window.Telegram && window.Telegram.WebApp;
+if(tg){ try{ tg.ready(); tg.expand(); }catch(e){} }
+
+const FOV = 70;          // горизонтальное «поле зрения» в градусах
+const TARGET_BETA = 55;  // при каком наклоне монстр по центру по вертикали
+const V_GAIN = 2.2;      // чувствительность вертикали
+
+let heading = null, beta = null, gamma = null, count = 0;
+let monsterBearing = null;
+
+const el = id => document.getElementById(id);
+const norm = a => { a = a % 360; if(a > 180) a -= 360; if(a < -180) a += 360; return a; };
+
+function onOrient(e){
+  count++;
+  // на iOS webkitCompassHeading — уже готовый компас (0=север, по часовой)
+  if(typeof e.webkitCompassHeading === 'number' && !isNaN(e.webkitCompassHeading)){
+    heading = e.webkitCompassHeading;
+  } else if(e.alpha != null){
+    heading = 360 - e.alpha; // грубый фолбэк (без истинного севера)
+  }
+  beta = e.beta; gamma = e.gamma;
+  if(monsterBearing === null && heading !== null) monsterBearing = heading; // первый раз ставим перед собой
+  render();
+}
+
+function setStatus(text, cls){ const s = el('status'); s.textContent = text; s.className = cls; }
+
+function render(){
+  el('cnt').textContent = count;
+  el('head').textContent = heading === null ? '—' : heading.toFixed(0);
+  el('bg').textContent = (beta===null?'—':beta.toFixed(0)) + ' / ' + (gamma===null?'—':gamma.toFixed(0));
+  el('mb').textContent = monsterBearing === null ? '—' : monsterBearing.toFixed(0);
+
+  if(heading === null || monsterBearing === null){ el('delta').textContent = '—'; return; }
+
+  const dH = norm(monsterBearing - heading);
+  el('delta').textContent = dH.toFixed(0);
+
+  const mon = el('mon'), arrow = el('arrow');
+  if(Math.abs(dH) <= FOV/2){
+    // монстр в кадре — позиционируем по горизонтали и вертикали
+    mon.classList.remove('hidden');
+    arrow.style.display = 'none';
+    const x = 50 + (dH / (FOV/2)) * 42;           // % ширины
+    let y = 50;
+    if(beta !== null) y = 50 + (beta - TARGET_BETA) * V_GAIN; // наклон вниз -> монстр «на земле»
+    y = Math.max(8, Math.min(92, y));
+    mon.style.left = x + '%';
+    mon.style.top = y + '%';
+  } else {
+    // вне кадра — показываем стрелку в нужную сторону
+    mon.classList.add('hidden');
+    arrow.style.display = 'block';
+    if(dH > 0){ arrow.style.right = '16px'; arrow.style.left = 'auto'; arrow.textContent = '➤'; }
+    else { arrow.style.left = '16px'; arrow.style.right = 'auto'; arrow.textContent = '◀'; }
+  }
+}
+
+async function start(){
+  setStatus('Запрашиваю доступ…', 'wait');
+  // 1) датчики ориентации (на iOS нужен requestPermission по тапу)
+  try{
+    if(typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function'){
+      const res = await DeviceOrientationEvent.requestPermission();
+      if(res !== 'granted'){ setStatus('❌ Доступ к датчикам ОТКЛОНЁН', 'bad'); }
+    }
+    window.addEventListener('deviceorientation', onOrient, true);
+  }catch(err){
+    setStatus('❌ Датчики недоступны: ' + err.message, 'bad');
+  }
+
+  // 2) камера (не критично для теста, но для вайба)
+  try{
+    const stream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:'environment' }, audio:false });
+    el('cam').srcObject = stream;
+  }catch(err){ /* камера не обязательна */ }
+
+  // 3) через 1.5 сек проверяем, пошли ли события
+  setTimeout(() => {
+    if(count > 0) setStatus('✅ ДАТЧИКИ РАБОТАЮТ — поворачивай телефон, ищи 👾', 'ok');
+    else setStatus('❌ Событий нет — сенсоры в этом окружении НЕ работают', 'bad');
+  }, 1500);
+}
+
+el('startBtn').addEventListener('click', start);
+el('placeFront').addEventListener('click', () => { if(heading!==null) monsterBearing = heading; render(); });
+el('placeLeft').addEventListener('click',  () => { if(heading!==null) monsterBearing = norm(heading - 90); render(); });
+el('placeRight').addEventListener('click', () => { if(heading!==null) monsterBearing = norm(heading + 90); render(); });
+</script>
+</body>
+</html>
