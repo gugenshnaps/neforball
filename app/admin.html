@@ -128,6 +128,8 @@ function render(players){
 
 document.getElementById('refreshBtn').addEventListener('click', load);
 load();
+// автообновление раз в 20 сек, чтобы не жать кнопку вручную
+setInterval(load, 20000);
 </script>
 </body>
 </html>

@@ -615,13 +615,23 @@ async function loadPlayer(){
   return data;
 }
 
-async function ensurePlayer(){
+// регистрируем заход при каждом открытии приложения — даже если персонаж ещё
+// не создан. Так в базе (и в админке) виден каждый, кто хоть раз открыл игру,
+// с первого захода, а не только те, кто уже сделал аватар.
+async function registerVisit(){
   let p = await loadPlayer();
-  if(!p) return null;
+  const nowIso = new Date().toISOString();
+  if(!p){
+    const tgName = (tg && tg.initDataUnsafe && tg.initDataUnsafe.user && tg.initDataUnsafe.user.first_name) || 'Неформал';
+    const ins = await sb.from('players')
+      .insert({ telegram_user_id: USER_ID, name: tgName, visits: 1, last_seen_at: nowIso })
+      .select().maybeSingle();
+    if(ins.error){ console.error(ins.error); return null; }
+    return ins.data; // ещё без sprite_url — покажем онбординг
+  }
   p = applyRollover(p);
-  // каждый заход в приложение: +1 к счётчику и обновляем время последнего входа
   p.visits = (p.visits || 0) + 1;
-  p.last_seen_at = new Date().toISOString();
+  p.last_seen_at = nowIso;
   await sb.from('players').update({
     catches_today: p.catches_today,
     life: p.life, dmg: p.dmg, depr: p.depr,
@@ -641,6 +651,8 @@ async function createPlayerRecord(spriteDataUrl){
   const { data: pub } = sb.storage.from('nefory-photos').getPublicUrl(path);
   const name = (tg && tg.initDataUnsafe && tg.initDataUnsafe.user && tg.initDataUnsafe.user.first_name) || 'Неформал';
 
+  // visits/last_seen_at не трогаем — их уже ведёт registerVisit, иначе создание
+  // аватара обнулило бы накопленный счётчик заходов
   const row = {
     telegram_user_id: USER_ID,
     name,
@@ -650,15 +662,13 @@ async function createPlayerRecord(spriteDataUrl){
     depr: 5, depr_cap: 10,
     jetons: 0,
     catches_today: 0,
-    last_active_date: todayStr(),
-    visits: 1,
-    last_seen_at: new Date().toISOString()
+    last_active_date: todayStr()
   };
-  // upsert, а не insert: если предыдущая попытка частично прошла (например,
-  // строка уже есть), пересоздание не упадёт на конфликте первичного ключа
+  // upsert, а не insert: строка уже есть (создана при первом заходе), поэтому
+  // это обновит её, дописав спрайт и стартовые статы, не тронув visits
   const ins = await sb.from('players').upsert(row, { onConflict: 'telegram_user_id' });
   if(ins.error) throw new Error('Не удалось сохранить персонажа: ' + ins.error.message);
-  player = row;
+  player = { ...player, ...row };
 }
 
 // ---- экономика: стоимость апгрейдов ----
@@ -978,8 +988,8 @@ setInterval(tickClock, 1000);
 
 // ---- старт ----
 (async () => {
-  player = await ensurePlayer();
-  if(player){
+  player = await registerVisit();
+  if(player && player.sprite_url){
     showGame();
     renderPlayer();
   } else {
