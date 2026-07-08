@@ -103,19 +103,14 @@
 
   /* character */
   .char-thumb{
-    width:60%; margin:0 auto;
-    aspect-ratio:1/1;
-    background:#101a30;
-    border-radius:16px;
-    position:relative;
-    overflow:hidden;
+    width:100%; height:320px;
+    margin:0 auto 4px;
+    display:flex; align-items:flex-end; justify-content:center;
   }
   .char-thumb img{
-    width:100%; height:100%;
+    height:100%; width:auto; max-width:92%;
     object-fit:contain;
-    filter:drop-shadow(0 6px 12px rgba(0,0,0,0.6));
-    padding:10%;
-    box-sizing:border-box;
+    filter:drop-shadow(0 8px 12px rgba(0,0,0,0.55));
   }
   .char-name{
     text-align:center;
