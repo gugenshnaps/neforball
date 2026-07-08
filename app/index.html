@@ -388,7 +388,7 @@ const SUPABASE_URL = 'https://cjisrumpcjeyzteaaueh.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_OSZ17Yj0e27sLRMBKCAnOQ_8lMUHZFG';
 const SPRITE_PROXY_URL = SUPABASE_URL + '/functions/v1/sprite-proxy';
 const SPRITE_MODEL = 'openai/gpt-image-2';
-const SPRITE_PROMPT = "16-bit SNES-style pixel art sprite of this person, front-facing, waist-up, single character centered, flat solid magenta (#ff00ff) background, no text, no watermark, retro video game character portrait style";
+const SPRITE_PROMPT = "Convert the exact person in the attached photo into an 8-bit retro video game pixel art character sprite. This is critical: preserve their real identity — the same face shape, skin tone, hairstyle and hair color, facial hair, clothing, accessories and body pose as in the photo. Do not invent a different person, gender, outfit or hairstyle. Keep it recognizable as the same individual, just redrawn in a blocky pixel art style. Front-facing, waist-up, single character centered, flat solid magenta (#ff00ff) background, no text, no watermark.";
 const DAILY_CATCH_LIMIT = 3;
 const STAT_FLOOR = 5;
 
@@ -792,24 +792,38 @@ function playCatchAnimation(dataUrl, labelText){
   });
 }
 
+let isCapturing = false;
+
 async function shoot(){
-  if(!stream) return;
-  if(captureMode === 'character'){
-    await handleCharacterCapture(video);
-  } else {
-    await handleCatchCapture(video);
+  if(!stream || isCapturing) return;
+  isCapturing = true;
+  document.getElementById('shootBtn').disabled = true;
+  try{
+    if(captureMode === 'character'){
+      await handleCharacterCapture(video);
+    } else {
+      await handleCatchCapture(video);
+    }
+  } finally {
+    isCapturing = false;
+    document.getElementById('shootBtn').disabled = false;
   }
 }
 
 function handleFallback(e){
   const file = e.target.files[0];
-  if(!file) return;
+  if(!file || isCapturing) return;
+  isCapturing = true;
   const img = new Image();
   img.onload = async () => {
-    if(captureMode === 'character'){
-      await handleCharacterCapture(img);
-    } else {
-      await handleCatchCapture(img);
+    try{
+      if(captureMode === 'character'){
+        await handleCharacterCapture(img);
+      } else {
+        await handleCatchCapture(img);
+      }
+    } finally {
+      isCapturing = false;
     }
   };
   img.src = URL.createObjectURL(file);
