@@ -480,8 +480,12 @@ function simpleCrop(source){
 // в полный рост и лицо не в центре кадра, кроп мог отрезать голову, и модели
 // нечего было сохранять. Берём кадр целиком (только уменьшаем по большей
 // стороне, чтобы не гонять слишком тяжёлые фото), без обрезки контента.
-function fullFrame(source, maxSide){
+// отдаём JPEG, а не PNG: фото-исходник в PNG весит в разы больше и тяжёлый
+// запрос рвётся на мобильной сети ("Load failed"). Значения maxSide/quality
+// подобраны в лаборатории (app/sprite_test.html).
+function fullFrame(source, maxSide, quality){
   maxSide = maxSide || 1024;
+  quality = quality || 0.9;
   const sw = source.videoWidth || source.naturalWidth || source.width;
   const sh = source.videoHeight || source.naturalHeight || source.height;
   const scale = Math.min(1, maxSide / Math.max(sw, sh));
@@ -490,7 +494,7 @@ function fullFrame(source, maxSide){
   const c = document.createElement('canvas');
   c.width = w; c.height = h;
   c.getContext('2d').drawImage(source, 0, 0, w, h);
-  return c.toDataURL('image/png');
+  return c.toDataURL('image/jpeg', quality);
 }
 
 async function stylize(source){
@@ -624,7 +628,9 @@ async function ensurePlayer(){
 async function createPlayerRecord(spriteDataUrl){
   const path = `${USER_ID}/character.png`;
   const blob = await (await fetch(spriteDataUrl)).blob();
-  await sb.storage.from('nefory-photos').upload(path, blob, { upsert: true, contentType: 'image/png' });
+  const up = await sb.storage.from('nefory-photos').upload(path, blob, { upsert: true, contentType: 'image/png' });
+  if(up.error) throw new Error('Не удалось сохранить картинку: ' + up.error.message);
+
   const { data: pub } = sb.storage.from('nefory-photos').getPublicUrl(path);
   const name = (tg && tg.initDataUnsafe && tg.initDataUnsafe.user && tg.initDataUnsafe.user.first_name) || 'Неформал';
 
@@ -639,7 +645,10 @@ async function createPlayerRecord(spriteDataUrl){
     catches_today: 0,
     last_active_date: todayStr()
   };
-  await sb.from('players').insert(row);
+  // upsert, а не insert: если предыдущая попытка частично прошла (например,
+  // строка уже есть), пересоздание не упадёт на конфликте первичного ключа
+  const ins = await sb.from('players').upsert(row, { onConflict: 'telegram_user_id' });
+  if(ins.error) throw new Error('Не удалось сохранить персонажа: ' + ins.error.message);
   player = row;
 }
 

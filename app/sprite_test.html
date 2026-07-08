@@ -3,20 +3,22 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Тест: фото → 16-бит спрайт</title>
+<title>Лаборатория нефор-аватара</title>
 <style>
   :root{ --bg:#12100c; --panel:#1c1912; --line:#3a332a; --bone:#f2ecdd; --dim:#a89a80; --acc:#3fe83f; }
   *{box-sizing:border-box;}
-  body{background:var(--bg); color:var(--bone); font-family:'Space Mono', monospace; padding:20px; max-width:480px; margin:0 auto;}
+  body{background:var(--bg); color:var(--bone); font-family:'Space Mono', monospace; padding:20px; max-width:520px; margin:0 auto;}
   h1{font-size:18px; margin-bottom:4px;}
-  p.sub{color:var(--dim); font-size:13px; margin-top:0;}
+  p.sub{color:var(--dim); font-size:13px; margin-top:0; line-height:1.5;}
   label{display:block; font-size:12px; color:var(--dim); margin:14px 0 4px; text-transform:uppercase; letter-spacing:0.04em;}
-  input[type="password"], textarea{
+  input[type="password"], input[type="text"], input[type="number"], textarea, select{
     width:100%; background:var(--panel); border:1px solid var(--line); color:var(--bone);
     padding:10px; border-radius:8px; font-family:inherit; font-size:13px;
   }
-  textarea{min-height:70px; resize:vertical;}
+  textarea{min-height:120px; resize:vertical;}
   input[type="file"]{color:var(--dim); font-size:12px;}
+  .two-col{display:flex; gap:12px;}
+  .two-col > div{flex:1;}
   button{
     margin-top:14px; width:100%; padding:14px; border:none; border-radius:8px;
     background:var(--acc); color:#0a1a0a; font-weight:700; font-size:14px; cursor:pointer;
@@ -31,61 +33,77 @@
   @keyframes bob{ 0%,100%{transform:translateY(0) scale(1);} 50%{transform:translateY(-3%) scale(1.015);} }
   #log{
     margin-top:16px; background:#000; border:1px solid var(--line); border-radius:8px;
-    padding:10px; font-size:11px; color:#8fdc8f; white-space:pre-wrap; max-height:220px; overflow:auto;
+    padding:10px; font-size:11px; color:#8fdc8f; white-space:pre-wrap; max-height:260px; overflow:auto;
   }
   .warn{color:#ffb15c; font-size:12px; margin-top:10px; line-height:1.5;}
+  details{margin-top:14px; font-size:12px; color:var(--dim);}
+  summary{cursor:pointer;}
 </style>
 </head>
 <body>
-  <h1>🧪 Тест: фото → 16-бит спрайт</h1>
-  <p class="sub">Прототип для проверки одного вызова к OpenRouter Image API (GPT Image 1). Ключ хранится только в памяти этой вкладки.</p>
+  <h1>🧪 Лаборатория нефор-аватара</h1>
+  <p class="sub">Делает ровно то же, что приложение (то же сжатие фото → тот же промпт → gpt-image-2 → вырезание magenta-фона), но можно на лету крутить модель, промпт и размер и сразу видеть результат. Когда найдём хорошую комбинацию — перенесём её в приложение.</p>
 
   <label>Модель генерации</label>
   <select id="modelSelect">
-    <option value="google/gemini-2.5-flash-image">Gemini 2.5 Flash Image (Nano Banana) — ~$0.01-0.02/шт</option>
-    <option value="google/gemini-3.1-flash-lite-image">Gemini 3.1 Flash Lite Image — самая дешёвая из Gemini</option>
-    <option value="google/gemini-3.1-flash-image">Gemini 3.1 Flash Image (Nano Banana 2) — новее, чуть дороже</option>
+    <option value="openai/gpt-image-2" selected>GPT Image 2 (сейчас в приложении)</option>
+    <option value="google/gemini-2.5-flash-image">Gemini 2.5 Flash Image (Nano Banana) — точнее держит лицо</option>
+    <option value="google/gemini-3.1-flash-image">Gemini 3.1 Flash Image (Nano Banana 2)</option>
+    <option value="google/gemini-3.1-flash-lite-image">Gemini 3.1 Flash Lite Image — самая дешёвая</option>
     <option value="openai/gpt-image-1-mini">GPT Image 1 Mini</option>
     <option value="openai/gpt-5-image-mini">GPT-5 Image Mini</option>
-    <option value="openai/gpt-image-2" selected>GPT Image 2 (выбрана как основная)</option>
-    <option value="openai/gpt-image-1">GPT Image 1 — ~$0.06/шт (изначальная, дорогая)</option>
+    <option value="openai/gpt-image-1">GPT Image 1</option>
   </select>
 
-  <label>URL твоей Supabase Edge Function</label>
-  <input type="text" id="proxyUrl" value="https://cjisrumpcjeyzteaaueh.supabase.co/functions/v1/sprite-proxy">
+  <div class="two-col">
+    <div>
+      <label>Макс. сторона фото, px</label>
+      <input type="number" id="maxSize" value="1024" min="256" max="2048" step="128">
+    </div>
+    <div>
+      <label>JPEG качество (0.1–1)</label>
+      <input type="number" id="jpegQuality" value="0.9" min="0.1" max="1" step="0.05">
+    </div>
+  </div>
+  <p class="sub" style="margin-top:6px;">Больше размер → лучше видно лицо (важно для сходства), но тяжелее запрос (риск «Load failed» на мобильной сети). Ищем баланс.</p>
 
-  <label>Supabase anon/publishable key</label>
-  <input type="password" id="supaKey" value="sb_publishable_OSZ17Yj0e27sLRMBKCAnOQ_8lMUHZFG">
+  <label>Промпт (правь и экспериментируй)</label>
+  <textarea id="promptText">Convert the exact person in the attached photo into an 8-bit retro video game pixel art character sprite. This is critical: preserve their real identity — the same face shape, skin tone, hairstyle and hair color, facial hair, clothing, accessories and body pose as in the photo. Do not invent a different person, gender, outfit or hairstyle. Keep it recognizable as the same individual, just redrawn in a blocky pixel art style. Front-facing, waist-up, single character centered, flat solid magenta (#ff00ff) background, no text, no watermark.</textarea>
 
-  <label>Промпт (можно менять для экспериментов)</label>
-  <textarea id="promptText">16-bit SNES-style pixel art sprite of this person, front-facing, waist-up, single character centered, flat solid magenta (#ff00ff) background, no text, no watermark, retro video game character portrait style</textarea>
+  <label>Фото (селфи или в полный рост)</label>
+  <input type="file" accept="image/*" id="fileInput">
 
-  <label>Селфи</label>
-  <input type="file" accept="image/*" capture="user" id="fileInput">
-
-  <button id="genBtn" disabled>Сгенерировать спрайт</button>
+  <button id="genBtn" disabled>Сгенерировать аватар</button>
 
   <div class="preview-row">
     <div class="box">
       <img id="srcImg" src="" alt="">
-      <div class="lbl">исходное фото</div>
+      <div class="lbl">что уходит в модель</div>
     </div>
     <div class="box">
       <div class="sprite-wrap"><img id="spriteImg" src="" style="display:none;"></div>
-      <div class="lbl">спрайт (с прозрачным фоном)</div>
+      <div class="lbl">аватар (magenta вырезан)</div>
     </div>
   </div>
 
-  <p class="warn">Ключ OpenRouter теперь хранится только на сервере (в секретах Edge Function) — в этом инструменте его нигде вводить не нужно, только URL функции и публичный Supabase-ключ (его светить безопасно).</p>
   <div id="log">лог появится здесь после генерации…</div>
 
+  <details>
+    <summary>Настройки подключения (обычно менять не нужно)</summary>
+    <label>URL Edge Function</label>
+    <input type="text" id="proxyUrl" value="https://cjisrumpcjeyzteaaueh.supabase.co/functions/v1/sprite-proxy">
+    <label>Supabase publishable key (светить безопасно)</label>
+    <input type="password" id="supaKey" value="sb_publishable_OSZ17Yj0e27sLRMBKCAnOQ_8lMUHZFG">
+  </details>
+
 <script>
+const SUPABASE_URL = 'https://cjisrumpcjeyzteaaueh.supabase.co';
 const fileInput = document.getElementById('fileInput');
 const genBtn = document.getElementById('genBtn');
 const srcImg = document.getElementById('srcImg');
 const spriteImg = document.getElementById('spriteImg');
 const logEl = document.getElementById('log');
-let selfieDataUrl = null;
+let rawFileDataUrl = null; // оригинал как выбрал пользователь, до обработки
 
 function log(msg){
   logEl.textContent += '\n' + (typeof msg === 'string' ? msg : JSON.stringify(msg, null, 2));
@@ -97,27 +115,53 @@ fileInput.addEventListener('change', (e) => {
   if(!file) return;
   const reader = new FileReader();
   reader.onload = () => {
-    selfieDataUrl = reader.result;
-    srcImg.src = selfieDataUrl;
+    rawFileDataUrl = reader.result;
     genBtn.disabled = false;
+    log(`выбрано фото: ${(file.size/1024).toFixed(0)} КБ, тип ${file.type || 'неизвестно'}`);
   };
   reader.readAsDataURL(file);
 });
+
+// то же, что должно быть в приложении: уменьшаем фото по большей стороне и
+// пережимаем в JPEG, чтобы запрос был лёгким и не рвался на мобильной сети.
+// Кроп не делаем — иначе можно отрезать лицо.
+function processPhoto(rawDataUrl, maxSide, quality){
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const scale = Math.min(1, maxSide / Math.max(img.naturalWidth, img.naturalHeight));
+      const w = Math.round(img.naturalWidth * scale);
+      const h = Math.round(img.naturalHeight * scale);
+      const c = document.createElement('canvas');
+      c.width = w; c.height = h;
+      c.getContext('2d').drawImage(img, 0, 0, w, h);
+      resolve({ dataUrl: c.toDataURL('image/jpeg', quality), w, h });
+    };
+    img.src = rawDataUrl;
+  });
+}
 
 genBtn.addEventListener('click', async () => {
   const proxyUrl = document.getElementById('proxyUrl').value.trim();
   const supaKey = document.getElementById('supaKey').value.trim();
   const prompt = document.getElementById('promptText').value.trim();
   const model = document.getElementById('modelSelect').value;
-  if(!proxyUrl){ log('❌ Вставь URL Edge Function.'); return; }
-  if(!supaKey){ log('❌ Вставь Supabase anon key.'); return; }
-  if(!selfieDataUrl){ log('❌ Выбери фото.'); return; }
+  const maxSize = parseInt(document.getElementById('maxSize').value, 10) || 1024;
+  const quality = parseFloat(document.getElementById('jpegQuality').value) || 0.9;
+  if(!rawFileDataUrl){ log('❌ Выбери фото.'); return; }
 
   genBtn.disabled = true;
   genBtn.textContent = 'Генерирую…';
-  logEl.textContent = `→ отправляю запрос в прокси-функцию (модель: ${model})…`;
+  logEl.textContent = '→ готовлю фото…';
 
+  const t0 = Date.now();
   try{
+    const processed = await processPhoto(rawFileDataUrl, maxSize, quality);
+    srcImg.src = processed.dataUrl;
+    const payloadKb = (processed.dataUrl.length / 1024).toFixed(0);
+    log(`фото после обработки: ${processed.w}×${processed.h}, запрос ~${payloadKb} КБ`);
+    log(`→ отправляю в модель ${model}…`);
+
     const res = await fetch(proxyUrl, {
       method: 'POST',
       headers: {
@@ -125,46 +169,35 @@ genBtn.addEventListener('click', async () => {
         'apikey': supaKey,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ prompt, imageDataUrl: selfieDataUrl, model })
+      body: JSON.stringify({ prompt, imageDataUrl: processed.dataUrl, model })
     });
 
     const raw = await res.text();
-    log(`← статус ответа: ${res.status}`);
-
-    if(!res.ok){
-      log('❌ Ошибка от сервера:');
-      log(raw);
-      return;
-    }
+    log(`← статус: ${res.status}`);
+    if(!res.ok){ log('❌ Ошибка от сервера:'); log(raw); return; }
 
     let data;
     try{ data = JSON.parse(raw); } catch(e){ log('⚠️ Ответ не в JSON:'); log(raw); return; }
+    if(!data.job_id){ log('⚠️ Сервер не вернул job_id:'); log(data); return; }
 
-    if(!data.job_id){
-      log('⚠️ Сервер не вернул job_id, вот сырой ответ:');
-      log(data);
-      return;
-    }
-
-    log(`→ задача создана (${data.job_id}), опрашиваю статус…`);
+    log(`→ задача ${data.job_id}, жду результат…`);
     const b64 = await pollSpriteJob(data.job_id, supaKey);
 
     const imgSrc = b64.startsWith('data:') ? b64 : `data:image/png;base64,${b64}`;
     await processSprite(imgSrc);
-    log('✅ Готово. Если фон не убрался полностью — модель могла не выдержать точный magenta, попробуй поменять промпт.');
+    log(`✅ Готово за ${((Date.now()-t0)/1000).toFixed(0)} сек.`);
 
   }catch(err){
-    log('❌ Ошибка при обращении к прокси:');
+    log('❌ Ошибка:');
     log(String(err));
   }finally{
     genBtn.disabled = false;
-    genBtn.textContent = 'Сгенерировать спрайт';
+    genBtn.textContent = 'Сгенерировать аватар';
   }
 });
 
 // генерация асинхронная: proxy сразу отдаёт job_id и обрабатывает в фоне,
 // опрашиваем таблицу sprite_jobs через REST, пока статус не сменится
-const SUPABASE_URL = 'https://cjisrumpcjeyzteaaueh.supabase.co';
 async function pollSpriteJob(jobId, supaKey){
   const start = Date.now();
   const maxWaitMs = 5 * 60 * 1000;
@@ -183,7 +216,7 @@ async function pollSpriteJob(jobId, supaKey){
   }
 }
 
-// remove near-magenta background client-side, so we don't need to pay for "transparent output"
+// вырезаем magenta-фон на клиенте, чтобы не платить за «прозрачный вывод»
 function processSprite(imgSrc){
   return new Promise((resolve) => {
     const img = new Image();
@@ -197,10 +230,7 @@ function processSprite(imgSrc){
       const px = data.data;
       for(let i=0; i<px.length; i+=4){
         const r = px[i], g = px[i+1], b = px[i+2];
-        // near-magenta detection: high R, low G, high B
-        if(r > 180 && g < 90 && b > 180){
-          px[i+3] = 0;
-        }
+        if(r > 180 && g < 90 && b > 180){ px[i+3] = 0; }
       }
       ctx.putImageData(data, 0, 0);
       spriteImg.src = c.toDataURL('image/png');
