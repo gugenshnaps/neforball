@@ -399,7 +399,9 @@ const SUPABASE_URL = 'https://cjisrumpcjeyzteaaueh.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_OSZ17Yj0e27sLRMBKCAnOQ_8lMUHZFG';
 const SPRITE_PROXY_URL = SUPABASE_URL + '/functions/v1/sprite-proxy';
 const SPRITE_MODEL = 'openai/gpt-image-2';
-const SPRITE_PROMPT = "Convert the exact person in the attached photo into an 8-bit retro video game pixel art character sprite. This is critical: preserve their real identity — the same face shape, skin tone, hairstyle and hair color, facial hair, clothing, accessories and body pose as in the photo. Do not invent a different person, gender, outfit or hairstyle. Keep it recognizable as the same individual, just redrawn in a blocky pixel art style. Front-facing, waist-up, single character centered, flat solid magenta (#ff00ff) background, no text, no watermark.";
+// промпт подобран вручную в лаборатории (app/sprite_test.html) — именно на нём
+// gpt-image-2 стабильно сохраняет самого человека, а не рисует другого
+const SPRITE_PROMPT = "Возьми этого человека и максимально сохрани его, но измени стиль на 8-bit, как будто он из игры 80-ых и вырежи фон, что бы он был PNG. Если изначальная фотография без ног, то дорисуй их в таком же стиле.";
 const DAILY_CATCH_LIMIT = 3;
 const STAT_FLOOR = 5;
 
