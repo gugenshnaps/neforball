@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Проба: бесплатная вырезалка фона</title>
+<style>
+  :root{ --bg:#12100c; --panel:#1c1912; --line:#3a332a; --bone:#f2ecdd; --dim:#a89a80; --acc:#3fe83f; }
+  *{box-sizing:border-box;}
+  body{background:var(--bg); color:var(--bone); font-family:'Space Mono',monospace; padding:20px; max-width:520px; margin:0 auto;}
+  h1{font-size:18px; margin-bottom:4px;}
+  p.sub{color:var(--dim); font-size:13px; margin-top:0; line-height:1.5;}
+  label{display:block; font-size:12px; color:var(--dim); margin:14px 0 4px; text-transform:uppercase;}
+  input[type="file"]{width:100%; background:var(--panel); border:1px solid var(--line); color:var(--dim); padding:10px; border-radius:8px; font-size:12px;}
+  button{margin-top:14px; width:100%; padding:14px; border:none; border-radius:8px; background:var(--acc); color:#0a1a0a; font-weight:700; font-size:14px; cursor:pointer;}
+  button:disabled{opacity:0.4; cursor:default;}
+  .preview-row{display:flex; gap:14px; margin-top:18px;}
+  .box{flex:1; background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:10px; text-align:center;}
+  .box .lbl{font-size:10px; color:var(--dim); text-transform:uppercase; margin-top:6px;}
+  .imgwrap{width:100%; aspect-ratio:1/1; border-radius:6px; display:flex; align-items:center; justify-content:center; overflow:hidden;
+    background:repeating-conic-gradient(#222 0% 25%, #2a2a2a 0% 50%) 50%/16px 16px;}
+  .imgwrap img{max-width:100%; max-height:100%; object-fit:contain;}
+  #log{margin-top:16px; background:#000; border:1px solid var(--line); border-radius:8px; padding:10px; font-size:11px; color:#8fdc8f; white-space:pre-wrap; max-height:240px; overflow:auto;}
+  .warn{color:#ffb15c; font-size:12px; margin-top:10px; line-height:1.5;}
+</style>
+</head>
+<body>
+  <h1>✂️ Проба: бесплатная вырезалка фона</h1>
+  <p class="sub">Вырезает фон нейросетью прямо в браузере (@imgly/background-removal), бесплатно и без лимита. Первый запуск качает модель (несколько МБ) — дальше из кэша. Проверяем: заводится ли, качество, и работает ли в Telegram на айфоне.</p>
+
+  <label>Картинка (спрайт или фото)</label>
+  <input type="file" accept="image/*" id="fileInput">
+
+  <button id="cutBtn" disabled>Вырезать фон (бесплатно)</button>
+
+  <div class="preview-row">
+    <div class="box">
+      <div class="imgwrap"><img id="srcImg" src="" alt=""></div>
+      <div class="lbl">исходник</div>
+    </div>
+    <div class="box">
+      <div class="imgwrap"><img id="outImg" src="" alt=""></div>
+      <div class="lbl">после вырезки</div>
+    </div>
+  </div>
+
+  <div id="log">лог появится здесь…</div>
+  <p class="warn">Если увидишь «✅ Готово» и справа человек на прозрачном (шахматном) фоне — вырезалка работает, вкручиваем в приложение. Если ошибка или зависло — значит в этом окружении не заводится.</p>
+
+<script type="module">
+import { removeBackground } from 'https://esm.sh/@imgly/background-removal@1.5.5';
+
+const fileInput = document.getElementById('fileInput');
+const cutBtn = document.getElementById('cutBtn');
+const srcImg = document.getElementById('srcImg');
+const outImg = document.getElementById('outImg');
+const logEl = document.getElementById('log');
+let fileUrl = null;
+
+function log(m){ logEl.textContent += '\n' + m; logEl.scrollTop = logEl.scrollHeight; }
+
+fileInput.addEventListener('change', (e) => {
+  const f = e.target.files[0];
+  if(!f) return;
+  fileUrl = URL.createObjectURL(f);
+  srcImg.src = fileUrl;
+  cutBtn.disabled = false;
+  log(`выбрано: ${(f.size/1024).toFixed(0)} КБ`);
+});
+
+cutBtn.addEventListener('click', async () => {
+  if(!fileUrl) return;
+  cutBtn.disabled = true;
+  cutBtn.textContent = 'Вырезаю…';
+  logEl.textContent = '→ запускаю вырезалку (первый раз качает модель, подожди)…';
+  const t0 = Date.now();
+  try{
+    const blob = await removeBackground(fileUrl, {
+      progress: (key, cur, total) => {
+        if(total) log(`${key}: ${Math.round(cur/total*100)}%`);
+      }
+    });
+    outImg.src = URL.createObjectURL(blob);
+    log(`✅ Готово за ${((Date.now()-t0)/1000).toFixed(1)} сек. Размер результата: ${(blob.size/1024).toFixed(0)} КБ`);
+  }catch(err){
+    log('❌ Не заработало: ' + (err && err.message ? err.message : String(err)));
+  }finally{
+    cutBtn.disabled = false;
+    cutBtn.textContent = 'Вырезать фон (бесплатно)';
+  }
+});
+</script>
+</body>
+</html>
