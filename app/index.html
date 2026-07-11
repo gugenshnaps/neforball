@@ -36,7 +36,7 @@
     max-width:430px;
     min-height:100vh;
     position:relative;
-    padding-bottom:24px;
+    padding-bottom:88px;
     overflow-x:hidden;
     background:
       linear-gradient(160deg, #6a4f9e 0%, #8a5f92 18%, #c98a52 38%, #8a76a0 55%, #5b74ab 72%, #37497c 100%);
@@ -270,6 +270,67 @@
   .modal-controls .mbtn{flex:1;}
   .hint{font-size:11px; color:var(--white); opacity:0.8; margin-top:12px; text-align:center; max-width:340px; line-height:1.5;}
   .fallback-input{display:none;}
+
+  /* недельный дейлик-бар */
+  .weekly-bar{
+    margin:6px 16px 0;
+    background:var(--panel-bg); border:1px solid var(--panel-border);
+    border-radius:14px; padding:12px 14px;
+    position:relative; z-index:2;
+  }
+  .weekly-bar .wtop{display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;}
+  .weekly-bar .wtitle{font-size:11px; text-transform:uppercase; letter-spacing:0.04em; color:var(--yellow); font-weight:700;}
+  .weekly-bar .wcount{font-size:12px; font-weight:700;}
+  .weekly-bar .wtrack{height:8px; background:rgba(0,0,0,0.35); border-radius:5px; overflow:hidden;}
+  .weekly-bar .wfill{height:100%; background:var(--green); transition:width 0.3s ease;}
+  .weekly-bar .wgoal{font-size:11px; opacity:0.85; margin-top:6px;}
+  .weekly-bar .wclaim{margin-top:10px; width:100%; padding:10px; border:none; border-radius:8px; background:var(--yellow); color:#1a1330; font-family:'Archivo Black',sans-serif; font-size:12px; cursor:pointer;}
+  .weekly-bar .wdone{margin-top:8px; font-size:11px; color:var(--green); font-weight:700; text-align:center;}
+
+  /* нижнее меню */
+  .bottom-nav{
+    position:fixed; bottom:0; left:0; right:0;
+    max-width:430px; margin:0 auto;
+    display:none;
+    background:#182035; border-top:1px solid rgba(255,255,255,0.15);
+    z-index:40; padding-bottom:env(safe-area-inset-bottom);
+  }
+  .bottom-nav.on{display:flex;}
+  .bottom-nav button{
+    flex:1; background:transparent; border:none; cursor:pointer;
+    color:var(--white); padding:10px 4px 12px;
+    display:flex; flex-direction:column; align-items:center; gap:3px;
+    font-family:'Space Mono',monospace; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.03em;
+  }
+  .bottom-nav button .ico{font-size:20px; line-height:1;}
+  .bottom-nav button.active{color:var(--yellow);}
+
+  /* экраны (друзья/бои/апгрейд) */
+  .screen{display:none;}
+  .screen.on{display:block;}
+  .screen-head{display:flex; align-items:center; gap:10px; padding:16px 18px 6px; position:relative; z-index:2;}
+  .back-btn{
+    background:rgba(0,0,0,0.28); border:1px solid var(--panel-border);
+    color:var(--white); border-radius:10px; padding:8px 12px;
+    font-family:'Space Mono',monospace; font-size:12px; font-weight:700; cursor:pointer;
+  }
+  .screen-title{font-family:'Archivo Black',sans-serif; font-size:17px; color:var(--yellow);}
+
+  /* друзья */
+  .invite-btn{width:calc(100% - 32px); margin:4px 16px 12px; display:block;}
+  .friend-row{display:flex; align-items:center; gap:10px; padding:10px 0; border-bottom:1px dashed rgba(255,255,255,0.14);}
+  .friend-row:last-child{border-bottom:none;}
+  .friend-av{width:38px;height:38px;border-radius:10px;background:#101a30;overflow:hidden;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:18px;}
+  .friend-av img{width:100%;height:100%;object-fit:cover;}
+  .friend-name{flex:1; font-size:13px; font-weight:700;}
+  .friend-status{font-size:11px; color:var(--green); font-weight:700;}
+  .muted{opacity:0.7; font-size:12px; line-height:1.6; padding:6px 0;}
+
+  /* заглушки */
+  .placeholder{text-align:center; padding:40px 20px;}
+  .placeholder .pico{font-size:44px; margin-bottom:14px;}
+  .placeholder .ptitle{font-family:'Archivo Black',sans-serif; font-size:18px; color:var(--yellow); margin-bottom:8px;}
+  .placeholder .psub{font-size:13px; color:var(--white); opacity:0.85; line-height:1.6;}
 </style>
 </head>
 <body>
@@ -299,7 +360,18 @@
 
   <!-- основная игра -->
   <div id="gameRoot" style="display:none;">
-    <div class="panel">
+    <div class="weekly-bar" id="weeklyBar">
+      <div class="wtop">
+        <span class="wtitle">Задание недели</span>
+        <span class="wcount" id="weekCount">0/10</span>
+      </div>
+      <div class="wtrack"><div class="wfill" id="weekFill" style="width:0%"></div></div>
+      <div class="wgoal">Поймай 10 неформалов за неделю</div>
+      <button class="wclaim" id="weekClaimBtn" style="display:none;">Забрать награду (+5💰)</button>
+      <div class="wdone" id="weekDone" style="display:none;">✅ Награда недели получена</div>
+    </div>
+
+    <div class="panel" style="margin-top:14px;">
       <div class="hero-row">
         <div class="char-thumb">
           <img id="charSprite" src="" alt="персонаж">
@@ -332,6 +404,56 @@
     </div>
 
     <button class="reset-link" id="resetCharBtn">↻ пересоздать персонажа</button>
+  </div>
+
+  <!-- Друзья -->
+  <div class="screen" id="friendsScreen">
+    <div class="screen-head">
+      <button class="back-btn" data-back>← Назад</button>
+      <div class="screen-title">Друзья</div>
+    </div>
+    <button class="mbtn shoot invite-btn" id="inviteBtn">Пригласить друга</button>
+    <div class="panel" style="margin-top:0;">
+      <div class="district">Зашли по твоей ссылке</div>
+      <div id="friendsList"></div>
+    </div>
+  </div>
+
+  <!-- Бои -->
+  <div class="screen" id="battlesScreen">
+    <div class="screen-head">
+      <button class="back-btn" data-back>← Назад</button>
+      <div class="screen-title">Бои</div>
+    </div>
+    <div class="panel">
+      <div class="placeholder">
+        <div class="pico">⚔️</div>
+        <div class="ptitle">Скоро появятся</div>
+        <div class="psub">Допиливаем бои, скоро будут...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Апгрейд -->
+  <div class="screen" id="upgradeScreen">
+    <div class="screen-head">
+      <button class="back-btn" data-back>← Назад</button>
+      <div class="screen-title">Апгрейд</div>
+    </div>
+    <div class="panel">
+      <div class="placeholder">
+        <div class="pico">👕</div>
+        <div class="ptitle">Магазин одежды</div>
+        <div class="psub">Допиливаем... скоро сможешь одевать своего нефора.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- нижнее меню -->
+  <div class="bottom-nav" id="bottomNav">
+    <button data-screen="friends"><span class="ico">👥</span>Друзья</button>
+    <button data-screen="battles"><span class="ico">⚔️</span>Бои</button>
+    <button data-screen="upgrade"><span class="ico">👕</span>Апгрейд</button>
   </div>
 
   <!-- камера (переиспользуется и для создания персонажа, и для ловли) -->
@@ -399,6 +521,12 @@ const SPRITE_MODEL = 'openai/gpt-image-2';
 const SPRITE_PROMPT = "Возьми этого человека и максимально сохрани его, но измени стиль на 8-bit, как будто он из игры 80-ых и вырежи фон, что бы он был PNG. Если изначальная фотография без ног, то дорисуй их в таком же стиле.";
 const DAILY_CATCH_LIMIT = 3;
 const STAT_FLOOR = 5;
+const WEEK_GOAL = 10;      // сколько поймать за неделю для награды
+const WEEK_REWARD = 5;     // жетонов за выполнение недельного задания
+// ССЫЛКА-ПРИГЛАШЕНИЕ: заменить на реального бота и short_name мини-аппа,
+// иначе кнопка «Пригласить» ведёт в никуда. Формат: https://t.me/БОТ/ПРИЛОЖЕНИЕ
+const BOT_APP_LINK = 'https://t.me/YOUR_BOT/YOUR_APP';
+const INVITE_TEXT = 'Заходи в Неформол — создай своего 8-битного нефора и качай его!';
 
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
@@ -600,6 +728,12 @@ function applyRollover(p){
     p.dmg = Math.max(STAT_FLOOR, p.dmg - decay);
     p.depr = Math.max(STAT_FLOOR, p.depr - decay);
   }
+  // недельный дейлик: сброс задания раз в 7 дней
+  if(!p.week_start || daysBetween(p.week_start, today) >= 7){
+    p.week_start = today;
+    p.week_catches = 0;
+    p.week_reward_claimed = false;
+  }
   p.last_active_date = today;
   return p;
 }
@@ -618,8 +752,15 @@ async function registerVisit(){
   const nowIso = new Date().toISOString();
   if(!p){
     const tgName = (tg && tg.initDataUnsafe && tg.initDataUnsafe.user && tg.initDataUnsafe.user.first_name) || 'Неформал';
+    // реферал: если открыли по ссылке ?startapp=ref_XXX — запоминаем пригласившего
+    let referredBy = null;
+    const startParam = tg && tg.initDataUnsafe && tg.initDataUnsafe.start_param;
+    if(startParam && startParam.indexOf('ref_') === 0){
+      const refId = startParam.slice(4);
+      if(refId && refId !== USER_ID) referredBy = refId;
+    }
     const ins = await sb.from('players')
-      .insert({ telegram_user_id: USER_ID, name: tgName, visits: 1, last_seen_at: nowIso })
+      .insert({ telegram_user_id: USER_ID, name: tgName, visits: 1, last_seen_at: nowIso, referred_by: referredBy })
       .select().maybeSingle();
     if(ins.error){ console.error(ins.error); return null; }
     return ins.data; // ещё без sprite_url — покажем онбординг
@@ -632,7 +773,10 @@ async function registerVisit(){
     life: p.life, dmg: p.dmg, depr: p.depr,
     last_active_date: p.last_active_date,
     visits: p.visits,
-    last_seen_at: p.last_seen_at
+    last_seen_at: p.last_seen_at,
+    week_start: p.week_start,
+    week_catches: p.week_catches,
+    week_reward_claimed: p.week_reward_claimed
   }).eq('telegram_user_id', USER_ID);
   return p;
 }
@@ -697,7 +841,32 @@ function renderPlayer(){
   document.getElementById('openCam').disabled = left <= 0;
 
   renderShop();
+  renderWeekly();
 }
+
+function renderWeekly(){
+  const caught = player.week_catches || 0;
+  const done = caught >= WEEK_GOAL;
+  document.getElementById('weekCount').textContent = Math.min(caught, WEEK_GOAL) + '/' + WEEK_GOAL;
+  document.getElementById('weekFill').style.width = Math.min(100, caught / WEEK_GOAL * 100) + '%';
+  const claimBtn = document.getElementById('weekClaimBtn');
+  const doneEl = document.getElementById('weekDone');
+  if(player.week_reward_claimed){
+    claimBtn.style.display = 'none'; doneEl.style.display = 'block';
+  } else if(done){
+    claimBtn.style.display = 'block'; doneEl.style.display = 'none';
+  } else {
+    claimBtn.style.display = 'none'; doneEl.style.display = 'none';
+  }
+}
+
+document.getElementById('weekClaimBtn').addEventListener('click', async () => {
+  if(player.week_reward_claimed || (player.week_catches || 0) < WEEK_GOAL) return;
+  player.jetons += WEEK_REWARD;
+  player.week_reward_claimed = true;
+  await sb.from('players').update({ jetons: player.jetons, week_reward_claimed: true }).eq('telegram_user_id', USER_ID);
+  renderPlayer();
+});
 
 function renderShop(){
   const el = document.getElementById('shopRows');
@@ -747,13 +916,75 @@ document.getElementById('shopRows').addEventListener('click', async (e) => {
   renderPlayer();
 });
 
+const gameRoot = document.getElementById('gameRoot');
+const bottomNav = document.getElementById('bottomNav');
+
 function showOnboarding(){
   document.getElementById('onboardingPanel').style.display = 'block';
-  document.getElementById('gameRoot').style.display = 'none';
+  gameRoot.style.display = 'none';
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('on'));
+  bottomNav.classList.remove('on');
 }
 function showGame(){
   document.getElementById('onboardingPanel').style.display = 'none';
-  document.getElementById('gameRoot').style.display = 'block';
+  bottomNav.classList.add('on');
+  showScreen('main');
+}
+
+// ---- нижнее меню и экраны ----
+function setActiveNav(name){
+  bottomNav.querySelectorAll('button').forEach(b => b.classList.toggle('active', b.dataset.screen === name));
+}
+function showScreen(name){
+  gameRoot.style.display = 'none';
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('on'));
+  if(name === 'main'){
+    gameRoot.style.display = 'block';
+    setActiveNav(null);
+  } else {
+    document.getElementById(name + 'Screen').classList.add('on');
+    setActiveNav(name);
+    if(name === 'friends') renderFriends();
+  }
+  window.scrollTo(0, 0);
+}
+bottomNav.querySelectorAll('button').forEach(b => {
+  b.addEventListener('click', () => showScreen(b.dataset.screen));
+});
+document.querySelectorAll('[data-back]').forEach(b => {
+  b.addEventListener('click', () => showScreen('main'));
+});
+
+// ---- друзья (реферальная механика) ----
+// Telegram не отдаёт список контактов, поэтому «друзья» = те, кто зашёл по твоей
+// ссылке. Кнопка «Пригласить» шлёт ссылку с твоим ref-кодом (telegram_user_id).
+function inviteLink(){ return BOT_APP_LINK + '?startapp=ref_' + USER_ID; }
+
+document.getElementById('inviteBtn').addEventListener('click', () => {
+  const shareUrl = 'https://t.me/share/url?url=' + encodeURIComponent(inviteLink()) + '&text=' + encodeURIComponent(INVITE_TEXT);
+  if(tg && tg.openTelegramLink){ tg.openTelegramLink(shareUrl); }
+  else { window.open(shareUrl, '_blank'); }
+});
+
+async function renderFriends(){
+  const el = document.getElementById('friendsList');
+  el.innerHTML = '<div class="muted">Загружаю…</div>';
+  const { data, error } = await sb.from('players')
+    .select('telegram_user_id,name,sprite_url,created_at')
+    .eq('referred_by', USER_ID)
+    .order('created_at', { ascending: false });
+  if(error){ el.innerHTML = '<div class="muted" style="color:#ff6b6b">Ошибка загрузки</div>'; return; }
+  if(!data || !data.length){
+    el.innerHTML = '<div class="muted">Пока никто не зашёл по твоей ссылке. Жми «Пригласить друга» и позови неформалов — они появятся здесь.</div>';
+    return;
+  }
+  el.innerHTML = data.map(f => `
+    <div class="friend-row">
+      <div class="friend-av">${f.sprite_url ? `<img src="${f.sprite_url}" alt="">` : '🕺'}</div>
+      <div class="friend-name">${f.name || 'Неформал'}</div>
+      <div class="friend-status">${f.sprite_url ? 'в игре' : 'зашёл'}</div>
+    </div>
+  `).join('');
 }
 
 // служебная кнопка для тестирования — удаляет персонажа и возвращает на онбординг
@@ -948,6 +1179,7 @@ async function handleCatchCapture(source){
 async function applyCatchReward(){
   player.catches_today += 1;
   player.jetons += 1;
+  player.week_catches = (player.week_catches || 0) + 1; // прогресс недельного задания
 
   // ~15% шанс на критическую поимку — мгновенный +1 к случайной шкале сверху жетона
   if(Math.random() < 0.15){
@@ -961,7 +1193,8 @@ async function applyCatchReward(){
     catches_today: player.catches_today,
     jetons: player.jetons,
     life: player.life, dmg: player.dmg, depr: player.depr,
-    last_active_date: todayStr()
+    last_active_date: todayStr(),
+    week_catches: player.week_catches
   }).eq('telegram_user_id', USER_ID);
 
   renderPlayer();

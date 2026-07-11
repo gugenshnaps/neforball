@@ -5,8 +5,11 @@
 // не держится открытым и мобильный браузер не обрывает его по таймауту.
 // Результат/ошибка пишутся в таблицу public.sprite_jobs, клиент опрашивает её.
 //
-// Секреты функции: OPENROUTER_API_KEY (свой). SUPABASE_URL и
+// Секреты функции: OPENROUTER_API_KEY и REMOVE_BG_API_KEY (свои). SUPABASE_URL и
 // SUPABASE_SERVICE_ROLE_KEY подставляются Supabase автоматически.
+//
+// После генерации спрайт прогоняется через remove.bg (качественное вырезание
+// фона) — так фон убирается стабильно у всех, а не через ненадёжный magenta-трюк.
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -33,6 +36,35 @@ function jsonResponse(body: unknown, status: number) {
     status,
     headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
   });
+}
+
+function arrayBufferToBase64(buf: ArrayBuffer): string {
+  const bytes = new Uint8Array(buf);
+  let binary = "";
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+  }
+  return btoa(binary);
+}
+
+// вырезаем фон качественной моделью remove.bg, возвращаем чистый прозрачный PNG в base64
+async function removeBg(rawB64: string): Promise<string> {
+  const key = Deno.env.get("REMOVE_BG_API_KEY");
+  if (!key) throw new Error("REMOVE_BG_API_KEY не задан в секретах функции");
+  const form = new FormData();
+  form.append("image_file_b64", rawB64);
+  form.append("size", "auto");
+  form.append("format", "png");
+  const res = await fetch("https://api.remove.bg/v1.0/removebg", {
+    method: "POST",
+    headers: { "X-Api-Key": key },
+    body: form,
+  });
+  if (!res.ok) {
+    throw new Error("remove.bg " + res.status + ": " + (await res.text()).slice(0, 200));
+  }
+  return arrayBufferToBase64(await res.arrayBuffer());
 }
 
 async function updateJob(jobId: string, fields: Record<string, unknown>) {
@@ -81,7 +113,17 @@ async function processJob(jobId: string, prompt: string, imageDataUrl: string, m
 
     if (!b64) throw new Error("Не нашли картинку в ответе провайдера");
 
-    await updateJob(jobId, { status: "done", result_b64: b64 });
+    // вырезаем фон через remove.bg; при сбое не роняем всю генерацию —
+    // отдаём сырой результат (лучше со фоном, чем ничего)
+    let finalB64 = b64;
+    try {
+      const rawB64 = b64.startsWith("data:") ? b64.split(",")[1] : b64;
+      finalB64 = await removeBg(rawB64);
+    } catch (e) {
+      console.error("remove.bg не сработал, отдаю сырой спрайт:", e);
+    }
+
+    await updateJob(jobId, { status: "done", result_b64: finalB64 });
   } catch (err) {
     await updateJob(jobId, { status: "error", error_message: String(err) });
   }
