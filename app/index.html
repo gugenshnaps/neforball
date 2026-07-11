@@ -523,9 +523,9 @@ const DAILY_CATCH_LIMIT = 3;
 const STAT_FLOOR = 5;
 const WEEK_GOAL = 10;      // сколько поймать за неделю для награды
 const WEEK_REWARD = 5;     // жетонов за выполнение недельного задания
-// ССЫЛКА-ПРИГЛАШЕНИЕ: заменить на реального бота и short_name мини-аппа,
-// иначе кнопка «Пригласить» ведёт в никуда. Формат: https://t.me/БОТ/ПРИЛОЖЕНИЕ
-const BOT_APP_LINK = 'https://t.me/YOUR_BOT/YOUR_APP';
+// ССЫЛКА-ПРИГЛАШЕНИЕ на главный Mini App бота (@neforgame_bot).
+// startapp=ref_<id> прилетает в tg.initDataUnsafe.start_param → атрибуция реферала.
+const BOT_APP_LINK = 'https://t.me/neforgame_bot';
 const INVITE_TEXT = 'Заходи в Неформол — создай своего 8-битного нефора и качай его!';
 
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
