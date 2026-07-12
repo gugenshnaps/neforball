@@ -202,11 +202,19 @@ genBtn.addEventListener('click', async () => {
     if(!data.job_id){ log('⚠️ Сервер не вернул job_id:'); log(data); return; }
 
     log(`→ задача ${data.job_id}, жду результат…`);
-    const b64 = await pollSpriteJob(data.job_id, supaKey);
+    const job = await pollSpriteJob(data.job_id, supaKey);
 
-    const imgSrc = b64.startsWith('data:') ? b64 : `data:image/png;base64,${b64}`;
-    await processSprite(imgSrc);
-    log(`✅ Готово за ${((Date.now()-t0)/1000).toFixed(0)} сек.`);
+    if(job.result_url){
+      // сервер уже вырезал фон (remove.bg) и сохранил в Storage — показываем как есть
+      spriteImg.src = job.result_url;
+      spriteImg.style.display = 'block';
+      log(`✅ Готово за ${((Date.now()-t0)/1000).toFixed(0)} сек (фон вырезан на сервере).`);
+    } else {
+      const b64 = job.result_b64;
+      const imgSrc = b64.startsWith('data:') ? b64 : `data:image/png;base64,${b64}`;
+      await processSprite(imgSrc);
+      log(`✅ Готово за ${((Date.now()-t0)/1000).toFixed(0)} сек (фолбэк: magenta-вырезка на клиенте).`);
+    }
 
   }catch(err){
     log('❌ Ошибка:');
@@ -228,7 +236,7 @@ async function pollSpriteJob(jobId, supaKey){
     });
     const rows = await res.json();
     const job = rows[0];
-    if(job && job.status === 'done') return job.result_b64;
+    if(job && job.status === 'done') return job;
     if(job && job.status === 'error') throw new Error(job.error_message || 'Генерация не удалась');
     if(Date.now() - start > maxWaitMs) throw new Error('Превышено время ожидания генерации');
     const waited = Math.round((Date.now() - start) / 1000);

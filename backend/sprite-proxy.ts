@@ -67,6 +67,30 @@ async function removeBg(rawB64: string): Promise<string> {
   return arrayBufferToBase64(await res.arrayBuffer());
 }
 
+// сохраняем готовый PNG в Storage прямо с сервера — телефону остаётся только
+// короткая ссылка, никакой перекачки мегабайтов через мобильную сеть
+// (именно она давала "Load failed" на последнем шаге создания аватара)
+async function uploadSprite(jobId: string, b64: string): Promise<string> {
+  const binary = atob(b64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  const path = `sprites/${jobId}.png`;
+  const res = await fetch(`${SUPABASE_URL}/storage/v1/object/nefory-photos/${path}`, {
+    method: "POST",
+    headers: {
+      apikey: SERVICE_ROLE_KEY,
+      Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
+      "Content-Type": "image/png",
+      "x-upsert": "true",
+    },
+    body: bytes,
+  });
+  if (!res.ok) {
+    throw new Error("storage upload " + res.status + ": " + (await res.text()).slice(0, 200));
+  }
+  return `${SUPABASE_URL}/storage/v1/object/public/nefory-photos/${path}`;
+}
+
 async function updateJob(jobId: string, fields: Record<string, unknown>) {
   await fetch(`${SUPABASE_URL}/rest/v1/sprite_jobs?id=eq.${jobId}`, {
     method: "PATCH",
@@ -115,15 +139,22 @@ async function processJob(jobId: string, prompt: string, imageDataUrl: string, m
 
     // вырезаем фон через remove.bg; при сбое не роняем всю генерацию —
     // отдаём сырой результат (лучше со фоном, чем ничего)
-    let finalB64 = b64;
+    let finalB64 = b64.startsWith("data:") ? b64.split(",")[1] : b64;
     try {
-      const rawB64 = b64.startsWith("data:") ? b64.split(",")[1] : b64;
-      finalB64 = await removeBg(rawB64);
+      finalB64 = await removeBg(finalB64);
     } catch (e) {
       console.error("remove.bg не сработал, отдаю сырой спрайт:", e);
     }
 
-    await updateJob(jobId, { status: "done", result_b64: finalB64 });
+    // сохраняем в Storage на сервере; если вдруг не вышло — фолбэк на b64,
+    // клиент умеет оба варианта
+    try {
+      const url = await uploadSprite(jobId, finalB64);
+      await updateJob(jobId, { status: "done", result_url: url });
+    } catch (e) {
+      console.error("upload в Storage не сработал, отдаю b64:", e);
+      await updateJob(jobId, { status: "done", result_b64: finalB64 });
+    }
   } catch (err) {
     await updateJob(jobId, { status: "error", error_message: String(err) });
   }

@@ -710,7 +710,12 @@ async function generateSprite(rawDataUrl){
   let data;
   try{ data = JSON.parse(raw); } catch(e){ throw new Error('Не удалось разобрать ответ сервера'); }
   if(!data.job_id) throw new Error('Сервер не вернул job_id');
-  const b64 = await pollSpriteJob(data.job_id);
+  const job = await pollSpriteJob(data.job_id);
+  // основной путь: сервер уже вырезал фон и сохранил PNG в Storage — нам
+  // приходит только короткая ссылка, ничего тяжёлого через телефон не гоняем
+  if(job.result_url) return job.result_url;
+  // фолбэк на старую схему (если серверу не удалось сохранить в Storage)
+  const b64 = job.result_b64;
   const imgSrc = b64.startsWith('data:') ? b64 : `data:image/png;base64,${b64}`;
   return await cutMagenta(imgSrc);
 }
@@ -722,7 +727,7 @@ async function pollSpriteJob(jobId){
   while(true){
     const { data, error } = await sb.from('sprite_jobs').select('*').eq('id', jobId).maybeSingle();
     if(error) throw new Error(error.message);
-    if(data && data.status === 'done') return data.result_b64;
+    if(data && data.status === 'done') return data;
     if(data && data.status === 'error') throw new Error(data.error_message || 'Генерация не удалась');
     if(Date.now() - start > maxWaitMs) throw new Error('Превышено время ожидания генерации');
     const waited = Math.round((Date.now() - start) / 1000);
@@ -802,13 +807,21 @@ async function registerVisit(){
   return p;
 }
 
-async function createPlayerRecord(spriteDataUrl){
-  const path = `${USER_ID}/character.png`;
-  const blob = await (await fetch(spriteDataUrl)).blob();
-  const up = await sb.storage.from('nefory-photos').upload(path, blob, { upsert: true, contentType: 'image/png' });
-  if(up.error) throw new Error('Не удалось сохранить картинку: ' + up.error.message);
-
-  const { data: pub } = sb.storage.from('nefory-photos').getPublicUrl(path);
+async function createPlayerRecord(sprite){
+  let spriteUrl;
+  if(/^https?:\/\//.test(sprite)){
+    // сервер уже сохранил спрайт в Storage — просто записываем ссылку,
+    // никакой загрузки мегабайтов с телефона (она и давала "Load failed")
+    spriteUrl = sprite;
+  } else {
+    // фолбэк для старой схемы (b64 с клиента)
+    const path = `${USER_ID}/character.png`;
+    const blob = await (await fetch(sprite)).blob();
+    const up = await sb.storage.from('nefory-photos').upload(path, blob, { upsert: true, contentType: 'image/png' });
+    if(up.error) throw new Error('Не удалось сохранить картинку: ' + up.error.message);
+    const { data: pub } = sb.storage.from('nefory-photos').getPublicUrl(path);
+    spriteUrl = pub.publicUrl;
+  }
   const name = (tg && tg.initDataUnsafe && tg.initDataUnsafe.user && tg.initDataUnsafe.user.first_name) || 'Неформал';
 
   // visits/last_seen_at не трогаем — их уже ведёт registerVisit, иначе создание
@@ -816,7 +829,7 @@ async function createPlayerRecord(spriteDataUrl){
   const row = {
     telegram_user_id: USER_ID,
     name,
-    sprite_url: pub.publicUrl,
+    sprite_url: spriteUrl,
     life: 5, life_cap: 10,
     dmg: 5, dmg_cap: 10,
     depr: 5, depr_cap: 10,
