@@ -523,6 +523,11 @@ const DAILY_CATCH_LIMIT = 3;
 const STAT_FLOOR = 5;
 const WEEK_GOAL = 10;      // сколько поймать за неделю для награды
 const WEEK_REWARD = 5;     // жетонов за выполнение недельного задания
+// анти-лавочка: поимка засчитывается только если силуэт человека занимает
+// хотя бы такую долю кадра (по маске MediaPipe). Меньше — «никого не поймал»,
+// попытка не тратится. Порог подобран мягко: человек в полный рост через
+// улицу — ~10-20% кадра, лавочка/забор дают около нуля.
+const MIN_PERSON_SHARE = 0.08;
 // ССЫЛКА-ПРИГЛАШЕНИЕ на главный Mini App бота (@neforgame_bot).
 // startapp=ref_<id> прилетает в tg.initDataUnsafe.start_param → атрибуция реферала.
 const BOT_APP_LINK = 'https://t.me/neforgame_bot';
@@ -622,6 +627,8 @@ function fullFrame(source, maxSide, quality){
   return c.toDataURL('image/jpeg', quality);
 }
 
+// вырезает силуэт и заодно меряет, какую долю кадра он занимает (coverage
+// 0..1) — по ней отсекаем кадры без человека (лавочки, заборы и т.п.)
 async function stylize(source){
   const sw = source.videoWidth || source.width;
   const sh = source.videoHeight || source.height;
@@ -636,6 +643,20 @@ async function stylize(source){
 
   const results = await runSegmentation(cropCanvas);
 
+  // доля пикселей, где маска уверенно видит человека (считаем по уменьшенной
+  // копии маски — быстро и точности хватает)
+  const mSide = 80;
+  const mCanvas = document.createElement('canvas');
+  mCanvas.width = mSide; mCanvas.height = mSide;
+  const mctx = mCanvas.getContext('2d');
+  mctx.drawImage(results.segmentationMask, 0, 0, mSide, mSide);
+  const md = mctx.getImageData(0, 0, mSide, mSide).data;
+  let hit = 0;
+  for(let i = 0; i < md.length; i += 4){
+    if(md[i] > 128) hit++;
+  }
+  const coverage = hit / (mSide * mSide);
+
   canvas.width = 500;
   canvas.height = 500;
   const ctx = canvas.getContext('2d');
@@ -645,7 +666,7 @@ async function stylize(source){
   ctx.drawImage(results.segmentationMask, 0, 0, 500, 500);
   ctx.globalCompositeOperation = 'source-over';
 
-  return canvas.toDataURL('image/png');
+  return { dataUrl: canvas.toDataURL('image/png'), coverage };
 }
 
 function cutMagenta(imgSrc){
@@ -1165,12 +1186,23 @@ async function handleCatchCapture(source){
   procLabel.textContent = 'ЗАХВАТ СИЛУЭТА…';
   await initSegmenter().catch(()=>{});
   let dataUrl;
+  let coverage = null; // null = сегментация не сработала, проверить не можем
   try{
-    dataUrl = await withTimeout(stylize(source), 8000);
+    const res = await withTimeout(stylize(source), 8000);
+    dataUrl = res.dataUrl;
+    coverage = res.coverage;
   }catch(err){
     dataUrl = simpleCrop(source);
   }
   processing.classList.remove('on');
+
+  // анти-лавочка: если сегментация отработала, но человека в кадре почти нет —
+  // не засчитываем. Попытка НЕ тратится, камера остаётся открытой для ретрая.
+  if(coverage !== null && coverage < MIN_PERSON_SHARE){
+    camHint.innerHTML = '🚫 Никого не поймал — в кадре не видно неформала. Наведись на человека и попробуй ещё раз.';
+    return;
+  }
+
   await playCatchAnimation(dataUrl, 'ПОЙМАН!');
   await applyCatchReward();
   closeModal();
