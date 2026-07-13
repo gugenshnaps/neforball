@@ -48,12 +48,21 @@ function arrayBufferToBase64(buf: ArrayBuffer): string {
   return btoa(binary);
 }
 
-// вырезаем фон качественной моделью remove.bg, возвращаем чистый прозрачный PNG в base64
+function base64ToBytes(b64: string): Uint8Array {
+  const binary = atob(b64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
+// вырезаем фон качественной моделью remove.bg, возвращаем чистый прозрачный PNG в base64.
+// ВАЖНО: шлём бинарник (image_file), а не image_file_b64 — на спрайтах ~1.5МБ+
+// base64-поле у remove.bg падает с "failed_to_read_image", бинарный путь работает
 async function removeBg(rawB64: string): Promise<string> {
   const key = Deno.env.get("REMOVE_BG_API_KEY");
   if (!key) throw new Error("REMOVE_BG_API_KEY не задан в секретах функции");
   const form = new FormData();
-  form.append("image_file_b64", rawB64);
+  form.append("image_file", new Blob([base64ToBytes(rawB64)], { type: "image/png" }), "sprite.png");
   form.append("size", "auto");
   form.append("format", "png");
   const res = await fetch("https://api.remove.bg/v1.0/removebg", {
@@ -138,12 +147,14 @@ async function processJob(jobId: string, prompt: string, imageDataUrl: string, m
     if (!b64) throw new Error("Не нашли картинку в ответе провайдера");
 
     // вырезаем фон через remove.bg; при сбое не роняем всю генерацию —
-    // отдаём сырой результат (лучше со фоном, чем ничего)
+    // отдаём сырой результат (лучше со фоном, чем ничего), а причину пишем
+    // в bg_error, чтобы сбой был виден в базе, а не только в логах
     let finalB64 = b64.startsWith("data:") ? b64.split(",")[1] : b64;
     try {
       finalB64 = await removeBg(finalB64);
     } catch (e) {
       console.error("remove.bg не сработал, отдаю сырой спрайт:", e);
+      await updateJob(jobId, { bg_error: String(e).slice(0, 500) });
     }
 
     // сохраняем в Storage на сервере; если вдруг не вышло — фолбэк на b64,
