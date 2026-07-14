@@ -1162,31 +1162,47 @@ async function handleCharacterCapture(source){
   await tryGenerateCharacter(rawDataUrl);
 }
 
-// при реальной ошибке генерации (не таймауте — тех теперь нет благодаря
-// асинхронному job'у) предлагаем ретрай на том же фото вручную, а не молча
-// дёргаем платную генерацию заново.
+// два раздельных шага с раздельными ретраями:
+// 1) генерация (платная) — ретрай запускает её заново только если сам спрайт не получен;
+// 2) сохранение (бесплатное) — если упало оно, ретраим ТОЛЬКО сохранение,
+//    уже готовый спрайт не перегенерируем и деньги не сжигаем.
 async function tryGenerateCharacter(rawDataUrl){
   processing.classList.add('on');
   procLabel.textContent = 'РИСУЕМ СПРАЙТ…';
+  let sprite;
   try{
-    const spriteDataUrl = await generateSprite(rawDataUrl);
-    processing.classList.remove('on');
-    await playCatchAnimation(spriteDataUrl, 'ГОТОВО!');
-    await createPlayerRecord(spriteDataUrl);
-    closeModal();
-    showGame();
-    renderPlayer();
+    sprite = await generateSprite(rawDataUrl);
   }catch(err){
     processing.classList.remove('on');
     const retry = confirm(
-      'Не получилось получить спрайт (' + err.message + ').\n' +
-      'Иногда сервер просто не успевает ответить за отведённое время, хотя генерация могла пройти успешно.\n' +
+      'Не получилось сгенерировать спрайт (' + err.message + ').\n' +
       'Попробовать ещё раз с этим же фото?'
     );
-    if(retry){
-      await tryGenerateCharacter(rawDataUrl);
-    }
+    if(retry) await tryGenerateCharacter(rawDataUrl);
+    return;
   }
+  processing.classList.remove('on');
+  await finalizeCharacter(sprite);
+}
+
+async function finalizeCharacter(sprite){
+  // СНАЧАЛА сохраняем персонажа — если дальше что-то заглючит (анимация,
+  // отрисовка), прогресс уже не потеряется: при перезапуске персонаж на месте
+  try{
+    await createPlayerRecord(sprite);
+  }catch(err){
+    const retry = confirm(
+      'Спрайт готов, но не удалось его сохранить (' + err.message + ').\n' +
+      'Повторить сохранение? (заново генерировать не нужно)'
+    );
+    if(retry) await finalizeCharacter(sprite);
+    return;
+  }
+  // анимация — украшение, а не условие: под таймаутом, чтобы не подвесить флоу
+  try{ await withTimeout(playCatchAnimation(sprite, 'ГОТОВО!'), 4000); }catch(e){}
+  closeModal();
+  showGame();
+  renderPlayer();
 }
 
 async function handleCatchCapture(source){
