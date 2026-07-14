@@ -602,6 +602,26 @@ function withTimeout(promise, ms){
   ]);
 }
 
+// мобильная сеть рвёт короткие запросы куда чаще, чем кажется. Молча повторяем
+// операцию несколько раз, прежде чем показывать ошибку живому человеку.
+async function retrying(fn, attempts, delayMs, label){
+  let lastErr;
+  for(let i = 1; i <= attempts; i++){
+    try{
+      return await fn();
+    }catch(err){
+      lastErr = err;
+      if(i === attempts) break;
+      if(label){
+        processing.classList.add('on');
+        procLabel.textContent = `${label} ПОПЫТКА ${i + 1}/${attempts}`;
+      }
+      await new Promise(r => setTimeout(r, delayMs * i)); // пауза растёт: 1x, 2x…
+    }
+  }
+  throw lastErr;
+}
+
 function simpleCrop(source){
   const sw = source.videoWidth || source.width;
   const sh = source.videoHeight || source.height;
@@ -1137,7 +1157,14 @@ function playCatchAnimation(dataUrl, labelText){
 let isCapturing = false;
 
 async function shoot(){
-  if(!stream || isCapturing) return;
+  if(isCapturing) return;
+  // на медленной сети (LTE) камера поднимается не сразу — без этого нажатие
+  // «Снять» до готовности потока молча игнорировалось, и казалось, что кнопка
+  // «не нажимается». Даём понятный фидбек вместо тишины.
+  if(!stream){
+    camHint.innerHTML = 'Камера ещё запускается, секунду…';
+    return;
+  }
   isCapturing = true;
   document.getElementById('shootBtn').disabled = true;
   try{
@@ -1203,8 +1230,13 @@ async function finalizeCharacter(sprite){
   // СНАЧАЛА сохраняем персонажа — если дальше что-то заглючит (анимация,
   // отрисовка), прогресс уже не потеряется: при перезапуске персонаж на месте
   try{
-    await createPlayerRecord(sprite);
+    // на мобильной сети короткий запрос к базе иногда рвётся ("Load failed") —
+    // это обычная икота LTE, а не поломка. Тихо пробуем ещё пару раз сами,
+    // и только если совсем никак — беспокоим пользователя диалогом
+    await retrying(() => createPlayerRecord(sprite), 3, 1200, 'СОХРАНЯЕМ ПЕРСОНАЖА…');
+    processing.classList.remove('on'); // ретраи могли включить индикатор
   }catch(err){
+    processing.classList.remove('on');
     const retry = confirm(
       'Спрайт готов, но не удалось его сохранить (' + err.message + ').\n' +
       'Повторить сохранение? (заново генерировать не нужно)'
