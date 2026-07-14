@@ -349,7 +349,16 @@
   </div>
 
   <!-- onboarding: создание персонажа -->
-  <div class="panel" id="onboardingPanel">
+  <!-- нейтральная заглушка на время загрузки игрока: раньше по умолчанию был
+       виден онбординг, и при перезаходе игрок 1-2 сек видел НЕ ТОТ экран -->
+  <div class="panel" id="loadingPanel">
+    <div class="onboard-hero">
+      <div class="onboard-glyph">📼</div>
+      <p class="onboard-sub">Загрузка…</p>
+    </div>
+  </div>
+
+  <div class="panel" id="onboardingPanel" style="display:none;">
     <div class="onboard-hero">
       <div class="onboard-glyph">🕺</div>
       <div class="onboard-title outline">Создай своего неформала</div>
@@ -794,7 +803,10 @@ async function registerVisit(){
   p = applyRollover(p);
   p.visits = (p.visits || 0) + 1;
   p.last_seen_at = nowIso;
-  await sb.from('players').update({
+  // запись визита НЕ блокирует отрисовку (раньше это добавляло ~секунду к
+  // появлению персонажа при перезаходе). Если запись не дошла — не страшно:
+  // декей/сбросы пересчитаются при следующем заходе, они считаются от дат
+  sb.from('players').update({
     catches_today: p.catches_today,
     life: p.life, dmg: p.dmg, depr: p.depr,
     last_active_date: p.last_active_date,
@@ -803,7 +815,7 @@ async function registerVisit(){
     week_start: p.week_start,
     week_catches: p.week_catches,
     week_reward_claimed: p.week_reward_claimed
-  }).eq('telegram_user_id', USER_ID);
+  }).eq('telegram_user_id', USER_ID).then(({ error }) => { if(error) console.error(error); });
   return p;
 }
 
@@ -954,12 +966,14 @@ const gameRoot = document.getElementById('gameRoot');
 const bottomNav = document.getElementById('bottomNav');
 
 function showOnboarding(){
+  document.getElementById('loadingPanel').style.display = 'none';
   document.getElementById('onboardingPanel').style.display = 'block';
   gameRoot.style.display = 'none';
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('on'));
   bottomNav.classList.remove('on');
 }
 function showGame(){
+  document.getElementById('loadingPanel').style.display = 'none';
   document.getElementById('onboardingPanel').style.display = 'none';
   bottomNav.classList.add('on');
   showScreen('main');
