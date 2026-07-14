@@ -7,10 +7,14 @@ Telegram Mini App. Игрок создаёт своего персонажа и�
 ## Ссылки и ключевые данные (чтобы быстро войти в контекст)
 
 - **Репозиторий:** github.com/gugenshnaps/neforball (публичный, автодеплой из `main`)
-- **Игра:** https://gugenshnaps.github.io/neforball/
-- **Админка (все игроки, заходы):** https://gugenshnaps.github.io/neforball/admin.html
-- **Лаборатория генерации моделей:** https://gugenshnaps.github.io/neforball/sprite_test.html
-- **Песочница CSS-анимации спрайта:** https://gugenshnaps.github.io/neforball/anim_test.html
+- **Игра (основной адрес, стоит в BotFather):** https://neforball.netlify.app/ —
+  Netlify выбран, чтобы в системном окне доступа к камере не светился
+  github.io с ником владельца. GitHub Pages
+  (gugenshnaps.github.io/neforball/) продолжает работать как зеркало,
+  оба деплоятся автоматически из `main`
+- **Админка (все игроки, заходы):** https://neforball.netlify.app/admin.html
+- **Лаборатория генерации моделей:** https://neforball.netlify.app/sprite_test.html
+- **Песочница CSS-анимации спрайта:** https://neforball.netlify.app/anim_test.html
 - **Supabase-проект:** `neforball`, id `cjisrumpcjeyzteaaueh`
 - **Telegram ID владельца (для теста):** `130273914` (@Yura_YO)
 
