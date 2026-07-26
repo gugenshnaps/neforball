@@ -320,6 +320,26 @@
   .invite-btn{width:calc(100% - 32px); margin:4px 16px 12px; display:block;}
   .friend-row{display:flex; align-items:center; gap:10px; padding:10px 0; border-bottom:1px dashed rgba(255,255,255,0.14);}
   .friend-row:last-child{border-bottom:none;}
+  .friend-row.clickable{cursor:pointer;}
+  .friend-row.clickable:active{background:rgba(255,255,255,0.05);}
+
+  /* просмотр аватара друга */
+  .friend-view{
+    width:100%; max-width:360px;
+    background:var(--panel-bg); border:1px solid var(--panel-border);
+    border-radius:20px; padding:22px 20px;
+    position:relative; backdrop-filter:blur(2px); text-align:center;
+  }
+  .friend-view .fv-close{
+    position:absolute; top:12px; right:12px;
+    width:32px; height:32px; border-radius:50%;
+    border:1px solid var(--panel-border); background:rgba(0,0,0,0.3);
+    color:var(--white); font-size:14px; cursor:pointer;
+  }
+  .friend-view .fv-sprite{height:260px; display:flex; align-items:flex-end; justify-content:center; margin-bottom:12px;}
+  .friend-view .fv-sprite img{height:100%; width:auto; max-width:92%; object-fit:contain; filter:drop-shadow(0 8px 12px rgba(0,0,0,0.55));}
+  .friend-view .fv-name{font-family:'Archivo Black',sans-serif; font-size:18px; color:var(--white); margin-bottom:14px;}
+  .friend-view .stat-bars{text-align:left;}
   .friend-av{width:38px;height:38px;border-radius:10px;background:#101a30;overflow:hidden;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:18px;}
   .friend-av img{width:100%;height:100%;object-fit:cover;}
   .friend-name{flex:1; font-size:13px; font-weight:700;}
@@ -425,6 +445,16 @@
     <div class="panel" style="margin-top:0;">
       <div class="district">Зашли по твоей ссылке</div>
       <div id="friendsList"></div>
+    </div>
+  </div>
+
+  <!-- просмотр аватара друга -->
+  <div class="modal" id="friendModal">
+    <div class="friend-view">
+      <button class="fv-close" id="fvClose">✕</button>
+      <div class="fv-sprite"><img id="fvImg" src="" alt="аватар друга"></div>
+      <div class="fv-name outline" id="fvName">—</div>
+      <div class="stat-bars" id="fvBars"></div>
     </div>
   </div>
 
@@ -1034,26 +1064,58 @@ document.getElementById('inviteBtn').addEventListener('click', () => {
   else { window.open(shareUrl, '_blank'); }
 });
 
+// имена приходят от чужих пользователей (из их Telegram) — экранируем,
+// прежде чем вставлять в HTML
+function esc(s){
+  return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+let friendsCache = [];
+
 async function renderFriends(){
   const el = document.getElementById('friendsList');
   el.innerHTML = '<div class="muted">Загружаю…</div>';
   const { data, error } = await sb.from('players')
-    .select('telegram_user_id,name,sprite_url,created_at')
+    .select('telegram_user_id,name,sprite_url,life,life_cap,dmg,dmg_cap,depr,depr_cap,created_at')
     .eq('referred_by', USER_ID)
     .order('created_at', { ascending: false });
   if(error){ el.innerHTML = '<div class="muted" style="color:#ff6b6b">Ошибка загрузки</div>'; return; }
-  if(!data || !data.length){
+  friendsCache = data || [];
+  if(!friendsCache.length){
     el.innerHTML = '<div class="muted">Пока никто не зашёл по твоей ссылке. Жми «Пригласить друга» и позови неформалов — они появятся здесь.</div>';
     return;
   }
-  el.innerHTML = data.map(f => `
-    <div class="friend-row">
-      <div class="friend-av">${f.sprite_url ? `<img src="${f.sprite_url}" alt="">` : '🕺'}</div>
-      <div class="friend-name">${f.name || 'Неформал'}</div>
-      <div class="friend-status">${f.sprite_url ? 'в игре' : 'зашёл'}</div>
+  el.innerHTML = friendsCache.map(f => `
+    <div class="friend-row${f.sprite_url ? ' clickable' : ''}" data-fid="${esc(f.telegram_user_id)}">
+      <div class="friend-av">${f.sprite_url ? `<img src="${esc(f.sprite_url)}" alt="">` : '🕺'}</div>
+      <div class="friend-name">${esc(f.name) || 'Неформал'}</div>
+      <div class="friend-status">${f.sprite_url ? 'в игре ›' : 'зашёл'}</div>
     </div>
   `).join('');
 }
+
+// тап по другу с аватаром → смотрим его нефора крупно
+document.getElementById('friendsList').addEventListener('click', (e) => {
+  const row = e.target.closest('.friend-row');
+  if(!row) return;
+  const f = friendsCache.find(x => String(x.telegram_user_id) === row.dataset.fid);
+  if(!f || !f.sprite_url) return;
+  document.getElementById('fvImg').src = f.sprite_url;
+  document.getElementById('fvName').textContent = f.name || 'Неформал';
+  document.getElementById('fvBars').innerHTML = STATS.map(s =>
+    bar(s.label, f[s.key], f[s.key + '_cap'], s.color)
+  ).join('');
+  document.getElementById('friendModal').classList.add('open');
+});
+
+document.getElementById('fvClose').addEventListener('click', () => {
+  document.getElementById('friendModal').classList.remove('open');
+});
+document.getElementById('friendModal').addEventListener('click', (e) => {
+  if(e.target === document.getElementById('friendModal')){
+    document.getElementById('friendModal').classList.remove('open');
+  }
+});
 
 // служебная кнопка для тестирования — удаляет персонажа и возвращает на онбординг
 document.getElementById('resetCharBtn').addEventListener('click', async () => {
